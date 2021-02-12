@@ -1,0 +1,502 @@
+---
+title: "Isotope Data Exploration"
+author: "Jeremy Morris"
+output:
+  html_document:
+    df_print: paged
+---
+
+```{r, include=FALSE}
+knitr::opts_chunk$set(message = FALSE,warning = FALSE, echo = FALSE)
+```
+
+# Isotope Mixing analysis - Methods & Exploration
+
+## Read in 2020 data and plot it up
+
+The local meteoric water line in this case is defined by the rain samples. Global meteoric water line is defined by the equation \(\delta ^{2}H = 8\delta ^{18}O + 10 \) after Craig (1961a). The inset map is a closer look at the dense cluster of samples.
+
+```{r Reading in and Plotting Isotope Data}
+setwd("E:/Jeremy's MSc Research/Chemistry Data and Analysis/Geochemistry")
+library(tidyverse)
+library(plotly)
+library(lubridate)
+library(scales)
+library(kableExtra)
+library(grid)
+library(gridExtra)
+library(cowplot)
+
+dat <- read_csv("Isotope2020Tidy.csv") %>%
+  mutate(date = dmy(Date),
+         Month = month(date, label = T, abbr = T))
+  
+dat
+
+
+
+raindat <- dat %>% 
+  filter(type == "Rain")
+
+gwdat <- dat %>% 
+  filter(type == "Groundwater")
+
+sfcdat <- dat %>% 
+  filter(type == "Pond")
+
+snowdat <- dat %>% 
+  filter(type == "Snow")
+
+pbase <- dat %>% 
+  ggplot()+
+  geom_point(aes(x = d18O, y = d2H, colour = Month, shape = type))
+  
+
+gwplt <- pbase+
+#   geom_smooth(data = gwdat, aes(x = d18O, y = d2H), method="lm", se=FALSE, colour = "red")+
+#   geom_smooth(data = sfcdat, aes(x = d18O, y = d2H), method="lm", se=FALSE)+
+  scale_x_continuous(limits = c(-20, -16.5)) +
+  scale_y_continuous(limits = c(-150, -125)) +
+  scale_colour_brewer(name = "Month",palette = 7)+
+  theme_classic()+
+  theme(legend.position = "none", 
+        axis.title.x = element_blank(),
+        axis.title.y = element_blank())
+
+# snowplt <- pbase+
+#   # geom_smooth(data = snowdat, aes(x = d18O, y = d2H), method="lm", se=FALSE, colour = "red")+
+#   scale_x_continuous(limits = c(-22.5, -19)) +
+#   scale_y_continuous(limits = c(-175, -145)) +
+#   theme(legend.position = "none", 
+#         axis.title.x = element_blank(),
+#         axis.title.y = element_blank())
+
+
+totplt <- pbase+
+  annotation_custom(ggplotGrob(gwplt),
+                    x = -15, y = -65,
+                    xmin = -20.25, ymin = -105)+
+  geom_abline(slope = 8, intercept = 10)+ #GMWL
+  annotate("text",x = -15,y=-105,angle =35,
+           label = "GMWL")+
+  geom_smooth(data = raindat, aes(x = d18O, y = d2H),
+              method="lm", se=FALSE,
+              colour = "Dark Grey")+
+  annotate("text",x = -12,y=-98,angle =38,
+           label = "LMWL")+
+  scale_x_continuous(name = expression(paste(delta^18,"O", "(\u2030)")))+
+  scale_y_continuous(name = expression(paste(delta^2,"H", "(\u2030)")))+
+  scale_colour_brewer(name = "Month (2020)",palette = 7)+
+  scale_shape_discrete(name = "Sample Type")+
+  theme_bw()
+
+
+totplt
+
+```
+
+
+# Temporal rain to snowmelt ratios
+
+## First I'll plot up the temporally grouped samples
+
+Firstly, note that the snowmelt sample in each plot is the same result copied to each plot as one could only sample snowmelt in spring. Interestingly, the groundwater compostions are fairly stable, but rain composition becomes less reduced over time. This conversely suggest that the groundwater is less reliant on rain input as thought later in the year.
+
+**What this could be:**
+
+* Rainfall events flush old water downslope, the old water is derived from snowmelt. 
+* Rainfall into wetland itself is primarily evapotranspirated off before recharge occurs
+* Rainfall may occur during periods when pooling is occurring, so it is transported away (by evap, or water velocity) faster than it can substantially recharge
+
+**How does this tie to the water level cross correlation?**
+
+* water level record shows fluctuation in water table elevation following precipitation. It does not inform about mixing or lackthereof. Therefore it is possible that rain raises water table, but the rain water doesn't mix or infiltrate enough to affect groundwater composition.
+
+This indicates that snowmelt is indeed the primary driver of the wetland hydrology over this study period. Snowmelt 
+
+```{r EMMA Calculation}
+
+sn <- dat %>% 
+  filter(SampleID == "Snow1") %>% 
+  distinct()
+
+# isolate values for snowmelt
+snowd2h <- sn$d2H
+snowd18o <- sn$d18O
+
+
+# IN GROUNDWATER ---------------------------------------------
+# temporally group rain & gw data into 
+
+# ----------------April------------------------------------------------------
+s2r.apr <- dat %>% 
+  group_by(type) %>% 
+  filter(type == "Rain"| type == "Groundwater") %>% 
+  filter(Month == "Apr") %>% 
+  summarise(d2H = mean(d2H),
+            d18O = mean(d18O))
+
+gw <- s2r.apr %>% 
+  filter(type == "Groundwater")
+
+rn <- s2r.apr %>% 
+  filter(type == "Rain")
+
+
+mx.apr <- tibble(d2h = (gw$d2H - snowd2h)/(rn$d2H -snowd2h),
+             d18o = (gw$d18O - snowd18o)/(rn$d18O -snowd18o),
+             Month = unique(dat$Month[dat$Month == "Jun"]))
+
+
+# ----------------JUNE------------------------------------------------------
+s2r.jun <- dat %>% 
+  group_by(type) %>% 
+  filter(type == "Rain"| type == "Groundwater") %>% 
+  filter(Month == "Jun"| Month == "May") %>% 
+  summarise(d2H = mean(d2H),
+            d18O = mean(d18O))
+
+gw <- s2r.jun %>% 
+  filter(type == "Groundwater")
+
+rn <- s2r.jun %>% 
+  filter(type == "Rain")
+
+
+mx.jun <- tibble(d2h = (gw$d2H - snowd2h)/(rn$d2H -snowd2h),
+             d18o = (gw$d18O - snowd18o)/(rn$d18O -snowd18o),
+             Month = unique(dat$Month[dat$Month == "Jun"]))
+
+
+
+# ----------------August------------------------------------------------------
+s2r.aug <- dat %>% 
+  group_by(type) %>% 
+  filter(type == "Rain"| type == "Groundwater") %>% 
+  filter(Month == "Aug") %>% 
+  summarise(d2H = mean(d2H),
+            d18O = mean(d18O))
+
+gw <- s2r.aug %>% 
+  filter(type == "Groundwater")
+
+rn <- s2r.aug %>% 
+  filter(type == "Rain")
+
+mx.aug <- tibble(d2h = (gw$d2H - snowd2h)/(rn$d2H -snowd2h),
+             d18o = (gw$d18O - snowd18o)/(rn$d18O -snowd18o),
+             Month = unique(dat$Month[dat$Month == "Aug"]))
+
+
+
+# ----------------October------------------------------------------------------
+s2r.oct <- dat %>% 
+  group_by(type) %>% 
+  filter(type == "Rain"| type == "Groundwater") %>% 
+  filter(Month == "Oct") %>% 
+  summarise(d2H = mean(d2H),
+            d18O = mean(d18O))
+
+gw <- s2r.oct %>% 
+  filter(type == "Groundwater")
+
+rn <- s2r.oct %>% 
+  filter(type == "Rain")
+
+mx.oct <- tibble(d2h = (gw$d2H - snowd2h)/(rn$d2H -snowd2h),
+             d18o = (gw$d18O - snowd18o)/(rn$d18O -snowd18o),
+             Month = unique(dat$Month[dat$Month == "Oct"]))
+
+
+# ---------- Bind together ----------------------
+
+
+
+r2s.gw <- bind_rows(mx.apr , mx.jun,mx.aug,mx.oct) %>% 
+  mutate(r2s.d2h.perc = scales::percent(d2h, accuracy = 0.01),
+         r2s.d18o.perc = scales::percent(d18o, accuracy = 0.01),
+         s2r.d2h.perc = scales::percent(1 - d2h, accuracy = 0.01),
+         s2r.d18o.perc = scales::percent(1- d18o, accuracy = 0.01))
+         # textlab = "Rain:Snow in GW",
+         # d2hlab = paste(as.character(expression(delta^{2}H))),d2h.perc),
+         # d18olab = as.character(expression(paste(delta^{18},"O",d18O.perc)))) This was for attempting to annotate the ggplot facets... erg.
+
+
+
+
+
+
+# IN SFC WATERS ---------------------------------------------
+# temporally group rain & gw data into 
+
+# ----------------April------------------------------------------------------
+s2r.apr <- dat %>% 
+  group_by(type) %>% 
+  filter(type == "Rain"| type == "River") %>% 
+  filter(Month == "Apr") %>% 
+  summarise(d2H = mean(d2H),
+            d18O = mean(d18O))
+
+gw <- s2r.apr %>% 
+  filter(type == "Groundwater")
+
+rn <- s2r.apr %>% 
+  filter(type == "Rain")
+
+
+mx.apr <- tibble(d2h = (gw$d2H - snowd2h)/(rn$d2H -snowd2h),
+             d18o = (gw$d18O - snowd18o)/(rn$d18O -snowd18o),
+             Month = unique(dat$Month[dat$Month == "Jun"]))
+
+
+# ----------------JUNE------------------------------------------------------
+
+s2r.jun <- dat %>% 
+  group_by(type) %>% 
+  filter(type == "Rain"| type == "River") %>% 
+  filter(Month == "Jun"| Month == "May") %>% 
+  summarise(d2H = mean(d2H),
+            d18O = mean(d18O))
+
+gw <- s2r.jun %>% 
+  filter(type == "River")
+
+rn <- s2r.jun %>% 
+  filter(type == "Rain")
+
+
+mx.jun <- tibble(d2h = (gw$d2H - snowd2h)/(rn$d2H -snowd2h),
+             d18o = (gw$d18O - snowd18o)/(rn$d18O -snowd18o),
+             Month = unique(dat$Month[dat$Month == "Jun"]))
+
+
+
+# ----------------August------------------------------------------------------
+s2r.aug <- dat %>% 
+  group_by(type) %>% 
+  filter(type == "Rain"| type == "River") %>% 
+  filter(Month == "Aug") %>% 
+  summarise(d2H = mean(d2H),
+            d18O = mean(d18O))
+
+gw <- s2r.aug %>% 
+  filter(type == "River")
+
+rn <- s2r.aug %>% 
+  filter(type == "Rain")
+
+mx.aug <- tibble(d2h = (gw$d2H - snowd2h)/(rn$d2H -snowd2h),
+             d18o = (gw$d18O - snowd18o)/(rn$d18O -snowd18o),
+             Month = unique(dat$Month[dat$Month == "Aug"]))
+
+
+
+# ----------------October------------------------------------------------------
+s2r.oct <- dat %>% 
+  group_by(type) %>% 
+  filter(type == "Rain"| type == "River") %>% 
+  filter(Month == "Oct") %>% 
+  summarise(d2H = mean(d2H),
+            d18O = mean(d18O))
+
+gw <- s2r.oct %>% 
+  filter(type == "River")
+
+rn <- s2r.oct %>% 
+  filter(type == "Rain")
+
+mx.oct <- tibble(d2h = (gw$d2H - snowd2h)/(rn$d2H -snowd2h),
+             d18o = (gw$d18O - snowd18o)/(rn$d18O -snowd18o),
+             Month = unique(dat$Month[dat$Month == "Oct"]))
+
+
+# ------------- Bind together----
+
+r2s.crk <- bind_rows(
+mx.apr, mx.jun,mx.aug,mx.oct) %>% 
+  mutate(r2s.d2h.perc = scales::percent(d2h, accuracy = 0.01),
+         r2s.d18o.perc = scales::percent(d18o, accuracy = 0.01),
+         s2r.d2h.perc = scales::percent(1 - d2h, accuracy = 0.01),
+         s2r.d18o.perc = scales::percent(1- d18o, accuracy = 0.01))
+         # textlab = "Rain:Snow in GW",
+         # d2hlab = paste(as.character(expression(delta^{2}H))),d2h.perc),
+         # d18olab = as.character(expression(paste(delta^{18},"O",d18O.perc)))) This was for attempting to annotate the ggplot facets... erg.
+```
+
+```{r Plotting Temporally}
+
+snow <- sn %>% slice(rep(1:n(), each=8))
+
+
+monthseq <- month(seq.Date(from = dmy("01-03-2021"), to = dmy("01-10-2021"), by = "month"), label = T, abbr = T)
+
+snow$Month = monthseq
+
+dat.snowdup <- full_join(dat, snow) %>% 
+  distinct()
+
+
+plt <- dat.snowdup %>% 
+  filter(type == "Snowmelt" | type == "Rain"| type == "Groundwater" | Site == "W.Crk" | type == 
+           "Pond") %>% 
+  filter(Month != "Mar" & Month != "Jul" & Month != "Sep") %>% 
+  ggplot()+
+  geom_point(aes(x = d18O, y = d2H, shape = type, colour = type))+
+  facet_grid( . ~ Month)+
+  scale_x_continuous(name = expression(paste(delta^18,"O", "(\u2030)")))+
+  scale_y_continuous(name = expression(paste(delta^2,"H", "(\u2030)")))+
+  scale_colour_discrete("Sample Type")+
+  scale_shape_discrete("Sample Type")
+  # geom_text(data = r2smix, aes(x = -Inf, y = -Inf, label = textlab,
+  #           hjust   = -.1,
+  #           vjust   = -27))+
+  # geom_text(data = r2smix, aes(x = -Inf, y = -Inf, label = d18o.perc,
+  #           hjust   = -.1,
+  #           vjust   = -14), parse = T)+
+  # geom_text(data = r2smix, aes(x = -Inf, y = -Inf, label = d2hlab,
+  #           hjust   = -.1,
+  #           vjust   = -15), parse = T)
+
+plt
+
+
+
+
+```
+
+```{r EMMA Table}
+r2s.gw %>% 
+  select(-d2h,-d18o) %>% 
+  kable(col.names = c("Month", "$\\delta^{2}$H", "$\\delta ^{18}$O", "$\\delta^{2}$H", "$\\delta ^{18}$O"),
+        align = "c",
+        caption = "Tracer mixing ratios in groundwater samples by month. These values reflect EMMA analysis results on the mixture of rain and snow isotope ratios in groundwater samples.",
+  escape = FALSE,
+  label = "Rain:Snow in Groundwater") %>% 
+  kable_styling(bootstrap_options = c("striped", "hover")) %>% 
+  add_header_above(c(" ", "Rain:Snow" = 2, "Snow:Rain" = 2), align = "center")%>% 
+  add_header_above(c("EMMA of Groundwater" = 5))
+  
+
+r2s.crk %>% 
+  select(-d2h,-d18o) %>% 
+  kable(col.names = c("Month", "$\\delta^{2}$H", "$\\delta ^{18}$O", "$\\delta^{2}$H", "$\\delta ^{18}$O"),
+        align = "c",
+        caption = "Tracer mixing ratios in West Creek samples by month. These values reflect EMMA analysis results on the mixture of rain and snow isotope ratios in groundwater samples.",
+  escape = FALSE,
+  label = "Rain:Snow in Creek") %>% 
+  kable_styling(bootstrap_options = c("striped", "hover")) %>% 
+  add_header_above(c(" ", "Rain:Snow" = 2, "Snow:Rain" = 2), align = "center") %>% 
+  add_header_above(c("EMMA of Creek Water" = 5))
+```
+
+
+# Context for changing precipitation isotope ratios
+
+Now I'll look at this with climate data. I've read in the AF station data and summarised it daily and seven-day rolling mean (sum) Air Temperature (Rain amounts). Isotope ratios of rainfall might be related to the amounts of precipitation, and the air temperature associated with that precipitation. This could place this summer's isotopic ratios of rain in the climate context.
+
+```{r Climate Conditions}
+
+stndat <- read_csv("E:/Jeremy's MSc Research/Hydrometric and GIS/Climate Data/AF_Station.csv")
+
+precip <- stndat %>% 
+  filter(Parameter == "Rain_Tot" | Parameter == "AirTC" | Parameter == "DBTCDT") %>%
+  filter(Timestamp >= "2020-01-01 00:00:00") %>% 
+  pivot_wider(names_from = Parameter, values_from = Value) %>% 
+  mutate(date = date(Timestamp)) %>% 
+  group_by(date) %>% 
+  summarise(Rain_Tot = sum(Rain_Tot),
+            AirTC = mean(AirTC),
+            SnowD = mean(DBTCDT)+30) %>% 
+  mutate(mn.rain = RcppRoll::roll_sumr(Rain_Tot, n = 14),
+            mn.temp = RcppRoll::roll_meanr(AirTC, n = 14)) %>% 
+  drop_na() 
+
+precip$SnowD[precip$date >= "2020-05-23"] = 0 # Trim the snow data once snow is gone
+
+
+# precip %>%
+#   ggplot()+
+#   geom_line(aes(x=date, y = SnowD, colour = "Snow"))+
+# geom_col(aes(x=date, y = Rain_Tot*7.5, fill = "Rainfall"))+
+#   geom_abline(slope = 0, intercept = 0,linetype = "dashed")+
+#   scale_y_continuous(name = "Snow Depth (cm)",
+#                      sec.axis = sec_axis(trans = ~./7.5, name = "Rainfall (mm)"))+
+#   labs(x = "date")+
+#   scale_fill_manual(name = "", values = c("Rainfall" = "#666666")) +
+#   scale_color_manual(name = "", values = c("Snow" = "blue"))+
+#   theme(legend.position = c(0.9,0.7),
+#         legend.title = element_blank(),
+#         legend.spacing.y = unit(0, "mm"),
+#         panel.border = element_rect(colour = "black", fill=NA),
+#         axis.text = element_text(colour = 1, size = 12),
+#         legend.background = element_blank(),
+#         legend.box.background = element_rect(colour = "black"))
+# 
+
+
+
+# p2 <- precip %>%
+#   ggplot()+
+#   geom_col(aes(x = date, y = Rain_Tot))
+# 
+# p3 <- dat %>% 
+#   filter(type == "Snowmelt" | type == "Rain"| type == "Groundwater" | Site == "W.Crk" | type == "Pond") %>% 
+#   ggplot()+
+#   geom_point(aes(x = date, y = Site, colour = type, shape = type))+
+#   theme(legend.position = "none")+
+#   scale_x_date(limits = c(ymd("2020-01-01"),NA))
+# 
+# grid.arrange(p1,p2,p3, ncol = 1)
+
+```
+
+```{r Combo plots}
+
+# join data together
+thin.dat <- dat %>% 
+  select(date, Site,type,d2H,d18O) %>% 
+  filter(Site!= "Fraser" & Site!= "Slim") %>% 
+  pivot_longer(cols = c(d2H,d18O), names_to = "Parameter")
+
+thin.precip <- precip %>% 
+  select(date, Rain_Tot,SnowD,AirTC) %>% 
+  pivot_longer(cols = c(Rain_Tot,SnowD,AirTC), names_to = "Parameter")
+
+
+
+
+all.dat <- full_join(thin.precip,thin.dat, by = c("date", "Parameter", "value"))
+
+all.dat$par.labs <- factor(all.dat$Parameter,
+                        levels = c("d2H","d18O","AirTC","Rain_Tot","SnowD"),
+                        labels = c(expression(paste(delta^2,"H ", "(\u2030)")),
+                                   expression(paste(delta^18,"O ", "(\u2030)")),
+                                   expression(paste("Temp  ","(\u00B0C)")),
+                                   expression("Rain~(mm)"),
+                                   expression("Snow~(cm)")))
+
+all.dat %>% 
+  ggplot(aes(x = date, y = value))+
+  facet_grid(rows = vars(par.labs), 
+             scales = "free",
+             switch = "both",
+             labeller = label_parsed)+
+  theme(strip.text.y = element_text( size = 8),
+        legend.position = c(0.1,0.8),
+        legend.title = element_text(size = 8),
+        legend.text = element_text(size = 8),
+        legend.key.size = unit(0.5, "cm"))+
+  labs(y = NULL,x = "Month")+
+  scale_colour_discrete(name = "Sample Type")+
+  scale_shape_discrete(name = "Sample Type")+
+  geom_point(data = dplyr::filter(.data = all.dat,Parameter == "d2H" | Parameter == "d18O"),
+             aes(colour = type, shape = type))+
+  geom_col(data = dplyr::filter(.data = all.dat,Parameter == "Rain_Tot"))+
+  geom_line(data = dplyr::filter(.data = all.dat,Parameter == "AirTC"),
+            colour = "red")+
+  geom_line(data = dplyr::filter(.data = all.dat,Parameter == "SnowD"),
+            colour = "blue")
+
+
+```
+

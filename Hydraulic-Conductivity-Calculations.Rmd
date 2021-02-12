@@ -1,0 +1,168 @@
+---
+title: "Theis Well Recovery Process for Estimating Hydraulic Conductivity"
+author: "Jeremy Morris"
+output:
+  html_document:
+    df_print: paged
+---
+
+```{r, include=FALSE}
+knitr::opts_chunk$set(message = FALSE,warning = FALSE
+)
+```
+
+### Read in, organize and plot the data we're using
+
+I've chosen a datum of 5 m below ground surface for hydraulic head measurements so that head values will intuitively make sense (all positive)
+
+## Well recovery B2-G 26 May 2019
+
+This process requires the data to be resampled at a 1-min interval since the 15-min data interval is too coarse. Resampling is done here by spline interpolation.
+
+```{r} 
+library(tidyverse)
+library(lubridate)
+library(zoo)
+library(plotly)
+
+setwd("E:\\Jeremy's MSc Research\\Hydrometric and GIS\\Water Data\\Groundwater\\Raw\\Pumping Data")
+
+file <- dir(pattern = "*.csv")
+
+TidyDat <- function(file) {
+  
+  site <- substr(file,1,4)
+  
+  dat <- read_csv(file) %>% 
+    mutate(site = site,
+           Time = replace_na(Time, "00:00:00"),
+           datetime = paste(Date,Time),
+           datetime = dmy_hms(datetime)) %>% 
+    select(site,datetime,Capacitance)
+}
+
+dat <- file %>% 
+  map(TidyDat) %>% 
+  reduce(rbind)
+
+# Calibrate the data
+cal <- read_csv("E:\\Jeremy's MSc Research\\Hydrometric and GIS\\Water Data\\Groundwater\\For Analysis\\Calibration Values.csv") %>% 
+  filter(site == "A2-G" |site == "B2-G" |site == "C2-G")
+
+caldat <- full_join(dat,cal) %>%
+  mutate(toctw_mm = m*Capacitance + b,
+         dtw_cm = (toctw_mm/10) - toctg_cm,) %>% 
+  select(-Capacitance,-serial,-m,-b, -elevation_m,)
+
+rsdat <- caldat %>%
+  filter(site == "B2-G") %>% 
+  filter(date(datetime) >= "2019-05-26" & date(datetime) <= "2019-05-27")
+
+rsdat <- rsdat %>%
+  complete(site, datetime = seq(head(rsdat$datetime,n=1),tail(rsdat$datetime,n=1), by = "1 min")) %>%
+  mutate(dtw_cm = na.approx(dtw_cm, na.rm = F),
+         head_cm = 500 - dtw_cm,
+         time = minutes(datetime)) # this is where resample occurs
+
+p <- rsdat %>% 
+  ggplot()+
+  geom_point(aes(x = datetime, y =head_cm, colour = site))+
+  labs(x = "Date", y = "Hydraulic Head (cm)")
+
+ggplotly(p)
+
+```
+
+
+
+
+### Theis Recovery Equation
+
+Find \(T\), Transmissivity:
+
+\(T = Kb = \frac{2.3Q}{4\pi RDD}log\frac{t}{t'}\)
+
+\(K = \frac{2.3Q}{4\pi\Delta hb}\)
+
+where 
+\(K =\) *HydraulicConductivity*,  
+\(Q =\) *Pumping Rate*,  
+\(RDD =\) *Residual Drawdown*,  
+\(t =\) *Time since pumping started*,  
+\(t' =\) *Time since pumping stopped*
+
+
+### Theis Recovery Test Plot
+
+
+```{r}
+ptime <- rsdat %>% 
+  mutate(time = minutes(datetime),
+    pstart_t = time - as.period(1558878300, "minute"),
+           pstop_t = time - as.period(1558880100, "minute"),
+         t_t0 = pstart_t/pstop_t,
+         logt = log(t_t0),
+    RDD = abs(466.1 - head_cm))
+
+
+plt <- ptime %>% 
+  filter(time >= as.period(1558878300, "minute")) %>% 
+  ggplot()+
+  geom_line(aes(x = t_t0, y = RDD))+
+  scale_x_continuous(trans = "log10")+
+  labs(title = paste("Theis Recovery Test", ptime$site, date(ptime$datetime)), y = "Residual Drawdown (mm)", x = "T/T' (Unitless)")
+ggplotly(plt)
+
+
+```
+
+## Find difference in \(RDD\) across a complete log cycle
+
+Here I do it between \(0.04<\frac{t}{t'}<0.4\) to get \(RDD = 54.5\).  
+I assume aquifer thickness, \(b\), of \(10\ m\) as this is roughly the elevation distance between modern fraser river and the well site elevation.  
+I have also assumed an average pumping rate \(Q\) of \(500\ cm^{3} min^{-1} \)
+
+```{r}
+Q = 500 #cm3/min
+RDD= 54.5 #cm
+b = 1000 #cm
+
+K = (2.3*Q)/(4*pi*RDD*b)*(1/60) # conductivity in cm/s
+K
+
+```
+
+
+# Bail Test method
+Bail tests work by instantaneously removing a volume from the well
+
+initial head h_{0} is the observed head upon removal of the slug. In our case it will be the lowest point in the raw data prior to the start of recovery.
+
+
+
+```{r}
+
+
+h0 <- 466.05
+
+
+
+baildat <- rsdat %>% 
+  mutate(h_h0 = head_cm/h0,
+         logh = log10(h_h0))
+
+p <- baildat %>% 
+  filter(time >= as.period(1558878300, "minute")) %>% 
+  ggplot()+
+  geom_point(aes(x = datetime, y = h_h0))+
+  scale_y_continuous(trans = "log10")
+p
+
+ggplotly(p)
+
+r <- 2.54 # well diameter length cm
+L <- 20 # well screen length cm
+t0 <- "14:45:00"
+
+```
+
