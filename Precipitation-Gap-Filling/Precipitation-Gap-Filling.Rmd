@@ -1,0 +1,328 @@
+
+```{r Chunk Settings, include=FALSE}
+knitr::opts_chunk$set(message = FALSE,warning = FALSE, echo = FALSE)
+```
+
+
+```{r Packages}
+library(tidyverse)
+library(lubridate)
+library(plotly)
+library(RcppRoll)
+library(broom)
+```
+
+
+it will be best to avg on daily timescale before bonding with tipping bucket data.
+
+
+# Read in & Tidy Regional Data
+
+Read in the regional precip dat (Longworth & Dome Mtn) This is cumulative precip data (from a pluvio?), join together, fix col headers, add Rain_Tot data col (not cumulative)
+
+```{r Read and Tidy Data}
+longprecip <- read_csv("Precipitation-Gap-Filling/LongworthCumPrecip.csv", skip = 2) %>% 
+  mutate(Site = "Longworth")
+
+domeprecip <- read_csv("Precipitation-Gap-Filling/DomeMtnCumPrecip.csv", skip = 2) %>% 
+  mutate(Site = "DomeMtn")
+
+precipdat <- full_join(longprecip,domeprecip)
+
+colnames(precipdat) <- c("Timestamp", "CuPrecip", "Grade", "Approval","Interpolation", "event", "Site")
+
+precipdat <- precipdat%>%
+  mutate(date = date(Timestamp)) %>% 
+  group_by(Site, date) %>% 
+  summarise(CuPrecip = mean(CuPrecip, na.rm = T)) %>% 
+  mutate(Rain_Tot = CuPrecip - lag(CuPrecip, 1))
+
+precipdat$Rain_Tot[precipdat$Rain_Tot < 0] = 0
+
+precipdat <- precipdat %>% 
+  pivot_longer(cols = c(Rain_Tot,CuPrecip), names_to = "Parameter")
+
+# Read in the regional Temperature dat (Longworth & Dome Mtn) Units are celsius, join together, fix col headers.
+
+longairt <- read_csv("Precipitation-Gap-Filling/LongworthAirT.csv", skip = 2) %>% 
+  mutate(Site = "Longworth") 
+
+domeairt <- read_csv("Precipitation-Gap-Filling/DomeMtnAirT.csv", skip = 2) %>% 
+  mutate(Site = "DomeMtn")
+
+tempdat <- full_join(longairt,domeairt)
+
+colnames(tempdat) <- c("Timestamp", "AirTC", "Grade", "Approval","Interpolation", "event", "Site")
+
+tempdat <- tempdat %>% 
+  mutate(date = date(Timestamp),
+         AirTC = as.numeric(gsub(x = AirTC, pattern = ",", replacement = "."))) %>%
+  group_by(Site, date) %>% 
+  summarise(AirTC = mean(AirTC, na.rm = T)) %>% 
+  pivot_longer(cols = AirTC, names_to = "Parameter")
+
+regdat <- full_join(precipdat,tempdat)
+
+# Plot regional data if you want
+
+# regdat  %>%
+#   filter(month(date)>= 4 & month(date)<=10) %>% 
+#   ggplot(aes(x = date, y = value))+
+#   geom_line(data = filter(.data = regdat, Parameter == "AirTC"), aes(colour = Site))+
+#   geom_col(data = filter(.data = regdat, Parameter == "Rain_Tot"), aes(fill = Site))+
+#   geom_line(data = filter(.data = regdat, Parameter == "CuPrecip"), aes(colour = Site))+
+#   facet_grid(rows = vars(Parameter),
+#              scales = "free")
+
+
+
+# -------------------------------------------------------------------------------------------------
+# -------------------------------------------------------------------------------------------------
+# Read and Tidy the local data
+
+# AF STATION DATA
+
+afraw <- read_csv("Precipitation-Gap-Filling/AF_Station.csv") %>% 
+  mutate(value = Value) %>% 
+  select(-Value)
+
+
+# ----------Found an error in Temp data, removing it here  ---------------------------------------
+
+
+temp.cleaned <- afraw %>% 
+  filter(Parameter == "AirTC") %>% 
+  filter(Timestamp <= ymd_hms("2020-10-15 19:00:00") | Timestamp >= ymd_hms("2020-10-17 04:00:00")) %>% 
+  filter(Timestamp <= ymd_hms("2020-10-20 18:00:00") | Timestamp >= ymd_hms("2020-10-22 00:00:00"))
+
+af.cln <- afraw %>% 
+  filter(Parameter != "AirTC")
+
+af.cln <- bind_rows(af.cln, temp.cleaned)
+
+  
+# BEAVER LAKE DATA
+
+bvdat <- read_csv("Precipitation-Gap-Filling/BVR_Precip_AirT.csv", skip = 1) %>% 
+  slice(-1)
+
+colnames(bvdat) <- c("record","Timestamp","Rain_Tot","AirTC","RH")
+
+bvdat <- bvdat %>% 
+  mutate(Timestamp = round_date(mdy_hms(Timestamp),unit = "minute"),
+         Site = "BeaverLake") %>% 
+  select(-record) %>% 
+  filter(Rain_Tot >= 0) %>% 
+  pivot_longer(cols = c(Rain_Tot,AirTC,RH), names_to = "Parameter")
+
+# JOIN LOCAL DATA FORMAT FOR FINAL JOIN
+
+localdat <- full_join(af.cln,bvdat) %>%
+  mutate(date = date(Timestamp)) %>% 
+  filter(Parameter == "AirTC" |
+         Parameter == "Rain_Tot" |
+         Parameter == "DBTCDT") %>% 
+  pivot_wider(names_from = Parameter, values_from = value) %>% 
+  group_by(Site,date) %>% 
+  summarise(AirTC = mean(AirTC, na.rm = T),
+            Rain_Tot = sum(Rain_Tot, na.rm = T),
+            DBTCDT = mean(DBTCDT,na.rm = T)) %>% 
+  pivot_longer(cols = c(AirTC, Rain_Tot, DBTCDT), names_to = "Parameter")
+
+
+# -------------------------------------------------------------------------------------------
+# -------------------  JOINING ALL DATASETS TOGETHER  ---------------------------------------
+
+
+dat <- full_join(localdat,regdat)
+ 
+
+# -------------------------------------------------------------------------------------------
+# -------------------  Plot TIMESERIES   ----------------------------------------------------
+
+
+dat$par.labs <- factor(dat$Parameter,
+                           levels = c("AirTC","CuPrecip","Rain_Tot", "DBTCDT"),
+                           labels = c(expression(paste("Temp  ","(\u00B0C)")),
+                                      expression("CuRain~(mm)"),
+                                      expression("Rain~(mm)"),
+                                      expression("Snowdepth~(mm)")))
+
+
+
+p <- dat %>% 
+   # filter(date >= "2020-07-01" & date <= "2021-01-14") 
+  filter(Parameter != "CuPrecip") %>% 
+  ggplot(aes(x = date, y = value))+
+  theme(strip.text.y = element_text( size = 8),
+        legend.title = element_text(size = 8),
+        legend.text = element_text(size = 8),
+        legend.key.size = unit(0.5, "cm"))+
+  labs(y = NULL,x = "Date")+
+  scale_fill_discrete(name = "Station")+
+  scale_colour_discrete(name = "Station")+
+  geom_line(data = filter(.data = dat, Parameter == "AirTC"), aes(colour = Site))+
+  geom_line(data = filter(.data = dat, Parameter =="DBTCDT"), aes(colour = Site))+
+  geom_abline(slope = 0, intercept = 0,linetype = "dashed")+
+  geom_col(data = filter(.data = dat, Parameter == "Rain_Tot"), aes(fill = Site))+
+  # geom_line(data = filter(.data = dat, Parameter == "CuPrecip"), aes(colour = Site))+
+  facet_grid(rows = vars(par.labs),
+             scales = "free",
+             switch = "both",
+             labeller = label_parsed)
+
+
+ggplotly(p)
+
+
+```
+
+
+
+# Gap Fill the AF Data (Gap from "2020-08-12" to "2020-10-04")
+
+
+
+
+```{r Gap Filling}
+# Gap Fill AF Precip Data -------------------------------------------------
+
+# DATE RANGE OF NO AF DATA: raindat$AncientForest[raindat$date>= "2020-08-12" & raindat$date>= "2020-10-04"] = NA
+# OVERLAPPING WITH ALL STATions: raindat$date>= "2020-10-04" & raindat$date>= "2020-11-05"]
+# LONGEST OVERLAP WITH LONGWORTH & DOMEMTN:  date >= ymd("2020-05-01") & date <= ymd("2020-08-12")
+
+dat %>%
+  filter(Parameter == "Rain_Tot") %>% 
+  ggplot(aes(x = date,y = value))+
+  geom_col(aes(fill = Site))+
+  facet_grid(rows = vars(Site))
+
+
+# Filter to May 2020 - Aug 2020 as this period has long overlap between AF and the MOE sites
+
+raindat <- dat %>% 
+  group_by(Site) %>% 
+  filter(Parameter == "Rain_Tot") %>%
+  filter(date >= ymd("2020-05-01") & date <= ymd("2020-08-12")) %>% 
+  filter(Site != "BeaverLake") %>% 
+  select(-Parameter, -par.labs) %>%
+  mutate(value = RcppRoll::roll_sum(value, n = 3L, align = "right", na.rm = FALSE, fill = numeric(3))) %>% 
+  pivot_wider(names_from = Site, values_from = value) %>% 
+  pivot_longer(cols = c(-date, -AncientForest, Longworth,DomeMtn), names_to = "Site")
+
+raindat$AncientForest[raindat$date>= ymd("2020-08-12") & raindat$date>= ymd("2020-10-04")] = NA
+
+
+# Plot the data with fitted line
+
+raindat %>%
+  ggplot(aes(x = AncientForest, y = value))+
+  geom_point(aes(colour = Site))+
+  geom_smooth(method = "lm")+
+  facet_grid(cols = vars(Site))
+  
+# Calculate linear model across dataset
+
+
+# rainstat <- raindat %>% 
+#   nest(-Site) %>% 
+#   mutate(fit = map(data, ~ lm(AncientForest ~ value, data = .)),
+#          results = map(fit, augment)) %>% 
+#   unnest(results,data)
+# 
+#   
+# rainstat  %>% 
+#   ggplot(aes(x = date)) +
+#   geom_abline(intercept = 0, slope = 1, alpha = .2) +  # Line of perfect fit
+#   geom_point(aes(y = .fitted))+
+#   geom_point(aes(y = AncientForest), colour = "red")+
+#   facet_grid(rows = vars(Site))
+# 
+# 
+
+
+
+# -----------------------------------------------------------------------------------------------------------
+# -------------------  Find slope & intercept for Dome & AF relationship ---------------------------------------
+
+
+rainwide <- dat %>%       
+  filter(Parameter == "Rain_Tot") %>%
+  filter(date >= ymd("2020-05-01") & date <= ymd("2020-08-12")
+  ) %>% 
+  select(-Parameter, -par.labs) %>%
+  mutate(value = RcppRoll::roll_sum(value, n = 3L, align = "right", na.rm = FALSE, fill = numeric(3))) %>% 
+  pivot_wider(names_from = Site, values_from = value) 
+
+rainwide$AncientForest[rainwide$date>= ymd("2020-08-12") & rainwide$date>= ymd("2020-10-04")] = NA
+
+
+domefit <- rainwide %>% 
+  select(AncientForest,DomeMtn)
+
+# -----------------------------------------------------------------------------------------------------------
+
+
+domefit <- lm(data = domefit, AncientForest~DomeMtn)
+
+
+summary(domefit)
+
+fitline <- tidy(coefficients(domefit)) %>% 
+  pivot_wider(names_from = names, values_from = x, )
+colnames(fitline) <- c("b","m")
+
+
+
+# -------------------------------------------------------------------------------------------
+# -------------------  Calculate the filled values  ---------------------------------------
+
+af.fill <- dat %>% 
+  filter(Parameter == "Rain_Tot") %>% 
+  filter(date>= "2020-08-12" & date<= "2020-10-04") %>% 
+  filter(Site == "DomeMtn") %>% 
+  mutate(fil.value = fitline$m*value + fitline$b)
+
+af.fill$fil.value[af.fill$fil.value<0] = 0
+
+af.fill %>% 
+  ggplot()+
+  geom_point(aes(x = date, y = fil.value))
+
+
+
+# -------------------------------------------------------------------------------------------
+# -------------------  JOINING Corrected DATASET TOGETHER  ---------------------------------------
+
+
+af.fill <- af.fill %>% 
+  ungroup() %>% 
+  mutate(Site = "AncientForest",
+         value = fil.value) %>% 
+  select(-fil.value)
+
+af.cor <- dat %>%
+  filter(Site == "AncientForest") %>% 
+  filter(Parameter == "Rain_Tot") %>% 
+  filter(date <= "2020-08-11" | date>= "2020-10-05")
+
+af.cor <- bind_rows(af.cor, af.fill)
+
+
+dat.cor <- dat %>% 
+  filter(Site != "AncientForest" | Parameter != "Rain_Tot")
+
+dat.cor <- bind_rows(dat.cor,af.cor)
+
+
+
+
+p <- dat.cor%>% 
+  filter(Parameter == "Rain_Tot") %>% 
+  ggplot()+
+  geom_col(aes(x = date, y = value, colour = Site))
+
+write_csv(dat.cor,"AF_Corr.csv")
+
+ggplotly(p)
+  
