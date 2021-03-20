@@ -446,7 +446,7 @@ p <- SLIMS %>%
   geom_line(aes(x = datetime, y = wl))+
   geom_point(aes(x = datetime, y = gtw_cm_man), colour = "red")
 ggplotly(p)
-
+ 
 # -----------------------------
 
 # Looks good aside from the depressingly short time period.
