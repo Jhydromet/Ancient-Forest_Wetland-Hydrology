@@ -64,12 +64,12 @@ rawdat <- rawdat %>%
 
 ## KEEP CHECKING THAT LOGGER SERIAL, SITE NUMBER AND FILE NAME ARE CONSISTENT!!!!!!
 
-rawdat %>% 
-  filter(site != "AFGW-B2b") %>% 
-ggplot()+
-  geom_line(aes(datetime,site, colour = site), size = 2) + 
-  labs(x = "Date", y = "Site", title = paste0(Sys.Date()," Tidied WL Logger Data"))+
-  scale_colour_discrete(guide = FALSE)
+# rawdat %>% 
+#   filter(site != "AFGW-B2b") %>% 
+# ggplot()+
+#   geom_line(aes(datetime,site, colour = site), size = 2) + 
+#   labs(x = "Date", y = "Site", title = paste0(Sys.Date()," Tidied WL Logger Data"))+
+#   scale_colour_discrete(guide = FALSE)
 
 
 # Add in Calibration Data & Geometry -------------------------------------------------
@@ -103,17 +103,15 @@ manual <- read_csv("Level-Logger-Data-Compiling/Manual_Water_Measurements.csv") 
   rename(log.sn = "serial_gw", gtw_cm_man = "gtw_cm") %>% 
   select(-toctg_cm)
 
-p <- manual %>% 
-  ggplot()+
-  geom_point(aes(date,toctw_cm,colour = site))+
-  geom_abline(slope = 0,intercept = 0)
-ggplotly(p)
+# p <- manual %>% 
+#   ggplot()+
+#   geom_point(aes(date,toctw_cm,colour = site))+
+#   geom_abline(slope = 0,intercept = 0)
+# ggplotly(p)
 
 wldat <- left_join(wldat,manual, by = c("date", "site", "log.sn"))
 
 
-View(wldat %>% 
-  filter(gtw_cm_man != "NA"))
 
 # Clean up the data -----------------------------------------------------
 
@@ -407,28 +405,21 @@ ECRKG <- wldat %>%
          head = wl+elevation_m)
 
 
-p <- ECRKG %>% 
-  ggplot()+
-  geom_line(aes(x = datetime, y = wl))+
-  geom_point(aes(x = datetime, y = gtw_cm_man), colour = "red")
-ggplotly(p)
 
-
+# I never verified this data with a manual measurement.. FUCK.
 
 # -----------------------------
 # looks a little funky, fall 2020 has two sharp increases that seem suspicious.. removing early data.
 
 WCRKG <- wldat %>% 
-  filter(site == "AFGW-WCRK") %>% 
+  filter(site == "WCRK") %>% 
   filter(datetime >= ymd_hms("2020-04-01 19:45:00")) %>% 
-  mutate(toc.tw = raw*m+b,
-         wl = toctg_cm - toc.tw,
+  mutate(toc.tw = (raw*m+b)/10,
+         wl = toctg_cm - toc.tw+100,
          head = wl+elevation_m)
 
-p <- C4G %>%
-  ggplot()+
-  geom_point(aes(x = datetime, y = toc.tw, colour = site))
-ggplotly(p)
+# I never verified this data with a manual measurement.. FUCK.
+
 
 # -----------------------------
 
@@ -443,9 +434,18 @@ SLIMS <-  wldat %>%
   filter(abs(raw - lag(raw, 1)) <= 10) %>% 
   filter(abs(raw - lag(raw, 1)) <= 10) %>% 
   filter(abs(raw - lag(raw, 1)) <= 10) %>% 
-  mutate(toc.tw = raw*m+b,
+  mutate(toc.tw = (raw*m+b)/10,
          wl = toctg_cm - toc.tw,
          head = wl+elevation_m)
+
+
+# I also need to determine if this is calibrated top down or bot up.
+
+p <- SLIMS %>% 
+  ggplot()+
+  geom_line(aes(x = datetime, y = wl))+
+  geom_point(aes(x = datetime, y = gtw_cm_man), colour = "red")
+ggplotly(p)
 
 # -----------------------------
 
