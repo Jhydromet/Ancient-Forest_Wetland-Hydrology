@@ -3,6 +3,7 @@ library(lubridate)
 library(plotly)
 library(sf)
 library(sp)
+library(mapview)
 
 # Read in the data
 
@@ -254,6 +255,23 @@ B2G <- B2G %>%
 B2G <- bind_rows(prepump,B2G)
 
 prepump <- B2G %>% 
+  filter(datetime <= ymd_hms("2020-07-20 08:45:00"))
+
+B2G <- B2G %>% 
+  filter(datetime >= ymd_hms("2020-08-04 04:00:00"))
+
+B2G <- bind_rows(prepump,B2G)
+
+prepump <- B2G %>% 
+  filter(datetime <= ymd_hms("2020-06-03 14:00:00"))
+
+B2G <- B2G %>% 
+  filter(datetime >= ymd_hms("2020-06-03 16:15:00")) %>% 
+  mutate(raw = raw+570)
+
+B2G <- bind_rows(prepump,B2G)
+
+prepump <- B2G %>% 
   filter(datetime <= ymd_hms("2019-11-13 14:15:00")) %>% 
   mutate(raw = raw + 500)
 
@@ -263,11 +281,13 @@ B2G <- B2G %>%
 B2G <- bind_rows(prepump,B2G) %>% 
   mutate(toc.tw = (raw*m+b)/10,
          wl = toctg_cm - toc.tw+20,
-         head = wl+elevation_m)
+         head = wl+elevation_m) %>% 
+  filter(year(datetime) == "2019")
 
 
-
-
+# p <- B2G %>% ggplot()+
+#   geom_line(aes(datetime,raw))
+# ggplotly(p)
 
 # -----------------------------
 
@@ -285,7 +305,7 @@ B3G <- wldat %>%
   filter(abs(raw - lag(raw, 1)) <= 5) %>%
   filter(abs(raw - lag(raw, 1)) <= 5) %>%
   mutate(toc.tw = (raw*m+b)/10,
-         wl = toctg_cm - toc.tw,
+         wl = toctg_cm - toc.tw+10,
          head = wl+elevation_m)
 
 
@@ -296,7 +316,7 @@ B3G <- wldat %>%
 B4G <- wldat %>% 
   filter(site == "B4") %>% 
   mutate(toc.tw = (raw*m+b)/10,
-         wl = toctg_cm - toc.tw+30,
+         wl = toctg_cm - toc.tw+40,
          head = wl+elevation_m)
 
 
@@ -307,7 +327,8 @@ B4G <- wldat %>%
 
 B5G <- wldat %>% 
   filter(site == "B5") %>% 
-  filter(raw >= 2000) 
+  filter(raw >= 2000) %>% 
+  filter(date >= ymd("2020-04-17"))
 
 prepump <- B5G %>% 
   filter(datetime <= ymd_hms("2020-08-18 12:30:00")) %>% 
@@ -366,8 +387,6 @@ C3G <- wldat %>%
   mutate(toc.tw = (raw*m+b)/10,
          wl = toctg_cm - toc.tw+20,
          head = wl+elevation_m)
-
-
 
 
 # -----------------------------
@@ -435,17 +454,16 @@ SLIMS <-  wldat %>%
   filter(abs(raw - lag(raw, 1)) <= 10) %>% 
   filter(abs(raw - lag(raw, 1)) <= 10) %>% 
   mutate(toc.tw = (raw*m+b)/10,
-         wl = toctg_cm - toc.tw,
+         wl = toctg_cm - toc.tw+40,
          head = wl+elevation_m)
 
 
-# I also need to determine if this is calibrated top down or bot up.
 
-p <- SLIMS %>% 
-  ggplot()+
-  geom_line(aes(x = datetime, y = wl))+
-  geom_point(aes(x = datetime, y = gtw_cm_man), colour = "red")
-ggplotly(p)
+# p <- SLIMS %>% 
+#   ggplot()+
+#   geom_line(aes(x = datetime, y = wl))+
+#   geom_point(aes(x = datetime, y = gtw_cm_man), colour = "red")
+# ggplotly(p)
  
 # -----------------------------
 
@@ -476,13 +494,51 @@ ECRKS <- wldat %>%
 # BIND ALL CORRECTED DATA TOGETHER ----------------------------------------
 
 
-dat.cor <- bind_rows(A1G, A2G, A3G, A4G, B1G, B2G, B3G, B4G, B5G, C1G, C2G, C3G, C4G, ECRKG, ECRKS, SLIMS, WCRKG, WCRKS)
+dat.cor <- bind_rows(A1G, A2G, A3G, A4G, B1G, B2G, B3G, B4G, B5G, C1G, C2G, C3G, C4G, ECRKG, WCRKG, SLIMS)
 
 
 p <- dat.cor %>% 
   ggplot()+
-  geom_line(aes(x = datetime, y = raw, colour = site))
+  geom_line(aes(x = datetime, y = wl, colour = site))+
+  geom_point(aes(x = datetime, y = gtw_cm_man, colour = site))
+  
 ggplotly(p)
 
-# Next step is to bind the well height dataset and correct for elevation...
+
+daily.data <- dat.cor %>% 
+  select(site,date,head,geom) %>% 
+  group_by(date,site) %>% 
+  mutate(head = mean(head, na.rm = T)) %>% 
+  distinct()
+
+p <- daily.data %>% 
+  ggplot()+
+  geom_line(aes(x = date, y = head, colour = site))
+ggplotly(p)
+
+
+# Compile into biweekly geopackages for kriging ---------------------------
+
+# first take daily means
+
+
+
+
+daterange <- seq(ymd("2019-05-01"), ymd("2020-11-01"), by = "month")
+
+# daterange = "2020-07-01"
+# 
+# mapview(daily.wl)
+
+WL_SHAPER <- function(daterange){
+  
+  daily.wl <- st_as_sf(daily.data) %>% 
+    dplyr::select(date,site,head, geom) %>% 
+    filter(date == daterange) %>% 
+    filter(site != "SLIM")
+  
+  st_write(daily.wl, paste0("Level-Logger-Data-Compiling/daily_wl_gpkgs/", daterange, ".gpkg"))
+}
+
+lapply(daterange,WL_SHAPER)
 
