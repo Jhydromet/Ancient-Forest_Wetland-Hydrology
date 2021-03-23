@@ -5,3 +5,5 @@ Calibration Values.csv
 piezos.gpkg
 AFW_RAW_CSV
 daily_wl_gpkgs
+piezos.gpkg-shm
+piezos.gpkg-wal
