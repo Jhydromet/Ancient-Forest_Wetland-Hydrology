@@ -1,3 +1,6 @@
+# Libraries ---------------------------------------------------------------
+
+
 library(tidyverse)
 library(lubridate)
 library(plotly)
@@ -5,8 +8,7 @@ library(sf)
 library(sp)
 library(mapview)
 
-# Read in the data
-
+# Read in the data -------------------------------------------------------------------------
 
 files <- dir(path = "Level-Logger-Data-Compiling/AFW_RAW_CSV", pattern = "*.CSV")
 
@@ -75,9 +77,6 @@ rawdat <- rawdat %>%
 
 # Add in Calibration Data & Geometry -------------------------------------------------
 
-
-
-
 cal <- read_csv("Level-Logger-Data-Compiling/Calibration Values.csv") %>% 
   select(-type,-site) %>% 
   rename(site = "site1")
@@ -116,6 +115,9 @@ wldat <- left_join(wldat,manual, by = c("date", "site", "log.sn"))
 
 # Clean up the data -----------------------------------------------------
 
+# A1G ---------------------------------------------------------------------
+
+
 # This well drops so much after pumping that it seems like pumping affected water level for at least two weeks after
 
 # And calculate water levels for each site.
@@ -130,7 +132,7 @@ A1G <- wldat %>%
 
 
 
-# ----------------------------
+# A2G ----------------------------
 
 # A2G was flipped "2019-05-25 23:45:00", removed low vals
 
@@ -155,7 +157,7 @@ A2G <- bind_rows(preflip, A2G) %>%
 
 rm(preflip)
 
-# -----------------------------
+# A3G -----------------------------
 
 # This site did not successfully record data in 2020/2021
 
@@ -168,7 +170,7 @@ A3G <- wldat %>%
          head = (wl/10)+elevation_m)
 
 
-# -----------------------------
+# A4G -----------------------------
 
 # A4G was flipped on 17 March 2020
 
@@ -189,8 +191,7 @@ A4G <- bind_rows(preflip,A4G) %>%
          head = (wl/10)+elevation_m)
 
 
-# -----------------------------
-# -----------------------------
+# B1G -----------------------------
 # Battery death over xmas. logger flip and another sharp drop.
 
 
@@ -221,7 +222,7 @@ B1G <- bind_rows(prewinter,B1G) %>%
 
 
 
-# -----------------------------
+# B2G -----------------------------
 
 B2G <- wldat %>% 
   filter(site == "B2") %>% 
@@ -289,7 +290,7 @@ B2G <- bind_rows(prepump,B2G) %>%
 #   geom_line(aes(datetime,raw))
 # ggplotly(p)
 
-# -----------------------------
+# B3G -----------------------------
 
 # sensor is really noisy, no summer 2020 data.
 
@@ -309,7 +310,7 @@ B3G <- wldat %>%
          head = (wl/10)+elevation_m)
 
 
-# -----------------------------
+# B4G -----------------------------
 
 # beautiful dataset. Rising limb following first deployment finished by ~ 01 May 2019
 
@@ -321,7 +322,7 @@ B4G <- wldat %>%
 
 
 
-# -----------------------------
+# B5G -----------------------------
 
 # removed spike during field visit, rising limb till 2020-04-25
 
@@ -344,7 +345,7 @@ B5G <- bind_rows(prepump,B5G) %>%
 
 
 
-# -----------------------------
+# C1G -----------------------------
 
 # data looks good aside from winter 2020 gap. spiky but not crazy.
 
@@ -358,7 +359,7 @@ C1G <- wldat %>%
 
 
 
-# -----------------------------
+# C2G -----------------------------
 
 # pumping data to be removed.Problems with midnight data points?
 
@@ -374,7 +375,7 @@ C2G <- wldat %>%
          head = (wl/10)+elevation_m)
 
 
-# -----------------------------
+# C3G -----------------------------
 
 # Only 2019 data. Gap in July from spikey data. generally spikey, either geology or welll..
 
@@ -389,7 +390,7 @@ C3G <- wldat %>%
          head = (wl/10)+elevation_m)
 
 
-# -----------------------------
+# C4G -----------------------------
 
 
 C4G <- wldat %>% 
@@ -405,8 +406,7 @@ C4G <- wldat %>%
 
 
 
-# -----------------------------
-# -----------------------------
+# ECRKG -----------------------------
 
 # Spikey and short (Just late 2020). Need to thin out more spike values (see filter with lag(raw,1))
 
@@ -427,7 +427,7 @@ ECRKG <- wldat %>%
 
 # I never verified this data with a manual measurement.. FUCK.
 
-# -----------------------------
+# WCRKG -----------------------------
 # looks a little funky, fall 2020 has two sharp increases that seem suspicious.. removing early data.
 
 WCRKG <- wldat %>% 
@@ -439,7 +439,7 @@ WCRKG <- wldat %>%
 
 # I never verified this data with a manual measurement.. FUCK.
 
-# -----------------------------
+# WCRKS -----------------------------
 
 # Looks good aside from the depressingly short time period.
 
@@ -449,7 +449,7 @@ WCRKS <- wldat %>%
          wl = toctg_cm - toc.tw,
          head = (wl/10)+elevation_m)
 
-# -----------------------------
+# ECRKS -----------------------------
 
 # Pretty good, though I'm alittle concerned it could be wet sediments.
 
@@ -498,7 +498,7 @@ monthly.data <- daily.data%>%
 # ggplotly(p)
 # 
 
-# -----------------------------
+# Binding SLIMS -----------------------------
 
 # Pretty good other than July lot of weird dropped spikes.. maybe whitewater causing an issue?
 
@@ -547,9 +547,6 @@ slim <- slim %>%
 # ggplotly(p)
  
 
-# --------------------------------------------------------------------------------------------------------------------
-
-
 # Binding Fraser data -----------------------------------------------------
 
 fraser_geo <- st_read("Level-Logger-Data-Compiling/river_data/Fraser_Points.gpkg")
@@ -576,22 +573,18 @@ fraser <- fraser %>%
 final_monthly <- full_join(monthly.data, fraser)
 final_monthly <- full_join(final_monthly,slim)
 
-View(final_monthly)
+
+# Write out monthly geopackages for Kriging -------------------------------
 
 
-# daterange = "2020-07-01"
-# 
-# mapview(daily.wl)
 
-# WL_SHAPER <- function(daterange){
-#   
-#   daily.wl <- st_as_sf(daily.data) %>% 
-#     dplyr::select(date,site,head, geom) %>% 
-#     filter(date == daterange) %>% 
-#     filter(site != "SLIM")
-#   
-#   st_write(daily.wl, paste0("Level-Logger-Data-Compiling/daily_wl_gpkgs/", daterange, ".gpkg"))
-# }
-# 
-# lapply(daterange,WL_SHAPER)
+monthly_gpkg_writer <- function(daterange){
+  monthly_geo <- st_as_sf(final_monthly) %>% 
+    filter(date == daterange)
+  st_write(monthly_geo, paste0("Level-Logger-Data-Compiling/daily_wl_gpkgs/", daterange, ".gpkg"))
+}
+
+
+daterange %>% 
+  map(monthly_gpkg_writer)
 
