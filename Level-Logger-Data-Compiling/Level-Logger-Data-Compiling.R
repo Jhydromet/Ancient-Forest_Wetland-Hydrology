@@ -124,7 +124,7 @@ A1G <- wldat %>%
   filter(site == "A1") %>% 
   mutate(toc.tw = (raw*m+b)/10,
          wl = toctg_cm - toc.tw + 58,
-         head = wl+elevation_m) %>% 
+         head = (wl/10)+elevation_m) %>% 
   filter(datetime <= ymd_hms("2019-09-10 14:15:00") | datetime >= ymd_hms("2019-09-19 00:00:00")) %>% 
   filter(date <= "2021-02-03")
 
@@ -148,7 +148,7 @@ A2G <- A2G%>%
 A2G <- bind_rows(preflip, A2G) %>% 
   mutate(toc.tw = (raw*m+b)/10,
          wl = toctg_cm - toc.tw +30,
-         head = wl+elevation_m)
+         head = (wl/10)+elevation_m)
 
 
 
@@ -165,7 +165,7 @@ A3G <- wldat %>%
   filter(datetime <= ymd_hms("2019-10-31 12:30:00")) %>% 
   mutate(toc.tw = (raw*m+b)/10,
          wl = toctg_cm - toc.tw+21,
-         head = wl+elevation_m)
+         head = (wl/10)+elevation_m)
 
 
 # -----------------------------
@@ -186,7 +186,7 @@ A4G <- A4G %>%
 A4G <- bind_rows(preflip,A4G) %>% 
   mutate(toc.tw = (raw*m+b)/10,
          wl = toctg_cm - toc.tw+15,
-         head = wl+elevation_m)
+         head = (wl/10)+elevation_m)
 
 
 # -----------------------------
@@ -216,7 +216,7 @@ B1G <- B1G %>%
 B1G <- bind_rows(prewinter,B1G) %>% 
   mutate(toc.tw = (raw*m+b)/10,
          wl = toctg_cm - toc.tw+ 45,
-         head = wl+elevation_m)
+         head = (wl/10)+elevation_m)
 
 
 
@@ -281,7 +281,7 @@ B2G <- B2G %>%
 B2G <- bind_rows(prepump,B2G) %>% 
   mutate(toc.tw = (raw*m+b)/10,
          wl = toctg_cm - toc.tw+20,
-         head = wl+elevation_m) %>% 
+         head = (wl/10)+elevation_m) %>% 
   filter(year(datetime) == "2019")
 
 
@@ -306,7 +306,7 @@ B3G <- wldat %>%
   filter(abs(raw - lag(raw, 1)) <= 5) %>%
   mutate(toc.tw = (raw*m+b)/10,
          wl = toctg_cm - toc.tw+10,
-         head = wl+elevation_m)
+         head = (wl/10)+elevation_m)
 
 
 # -----------------------------
@@ -317,7 +317,7 @@ B4G <- wldat %>%
   filter(site == "B4") %>% 
   mutate(toc.tw = (raw*m+b)/10,
          wl = toctg_cm - toc.tw+40,
-         head = wl+elevation_m)
+         head = (wl/10)+elevation_m)
 
 
 
@@ -340,7 +340,7 @@ B5G <- B5G %>%
 B5G <- bind_rows(prepump,B5G) %>% 
   mutate(toc.tw = (raw*m*0.1+b)/10,
          wl = toctg_cm - toc.tw+30,
-         head = wl+elevation_m)
+         head = (wl/10)+elevation_m)
 
 
 
@@ -353,7 +353,7 @@ C1G <- wldat %>%
   filter(raw >= 2250) %>% 
   mutate(toc.tw = (raw*m+b)/10,
          wl = toctg_cm - toc.tw+55,
-         head = wl+elevation_m)
+         head = (wl/10)+elevation_m)
 
 
 
@@ -371,7 +371,7 @@ C2G <- wldat %>%
   filter(datetime >= ymd_hms("2019-11-13 13:45:00") | datetime <= ymd_hms("2019-11-13 11:45:00")) %>% 
   mutate(toc.tw = (raw*m+b)/10,
          wl = toctg_cm - toc.tw,
-         head = wl+elevation_m)
+         head = (wl/10)+elevation_m)
 
 
 # -----------------------------
@@ -386,7 +386,7 @@ C3G <- wldat %>%
   filter(datetime >= ymd_hms("2019-07-30 21:45:00") | datetime <= ymd_hms("2019-07-30 17:00:00")) %>% 
   mutate(toc.tw = (raw*m+b)/10,
          wl = toctg_cm - toc.tw+20,
-         head = wl+elevation_m)
+         head = (wl/10)+elevation_m)
 
 
 # -----------------------------
@@ -401,7 +401,7 @@ C4G <- wldat %>%
   filter(datetime != ymd_hms("2019-04-05 15:30:00")) %>% 
   mutate(toc.tw = (raw*m+b)/10,
          wl = toctg_cm - toc.tw+5,
-         head = wl+elevation_m)
+         head = (wl/10)+elevation_m)
 
 
 
@@ -421,7 +421,7 @@ ECRKG <- wldat %>%
   filter(abs(raw - lag(raw, 1)) <= 10) %>% 
   mutate(toc.tw = (raw*m+b)/10,
          wl = toctg_cm - toc.tw,
-         head = wl+elevation_m)
+         head = (wl/10)+elevation_m)
 
 
 
@@ -435,10 +435,68 @@ WCRKG <- wldat %>%
   filter(datetime >= ymd_hms("2020-04-01 19:45:00")) %>% 
   mutate(toc.tw = (raw*m+b)/10,
          wl = toctg_cm - toc.tw+100,
-         head = wl+elevation_m)
+         head = (wl/10)+elevation_m)
 
 # I never verified this data with a manual measurement.. FUCK.
 
+# -----------------------------
+
+# Looks good aside from the depressingly short time period.
+
+WCRKS <- wldat %>% 
+  filter(site == "AFS-D-WCRK") %>% 
+  mutate(toc.tw = raw*m+b,
+         wl = toctg_cm - toc.tw,
+         head = (wl/10)+elevation_m)
+
+# -----------------------------
+
+# Pretty good, though I'm alittle concerned it could be wet sediments.
+
+ECRKS <- wldat %>% 
+  filter(site == "AFS-D-ECRK") %>% 
+  mutate(toc.tw = raw*m+b,
+         wl = toctg_cm - toc.tw,
+         head = (wl/10)+elevation_m)
+
+# p <- ECRKS %>%
+#   ggplot()+
+#   geom_point(aes(x = datetime, y = raw, colour = site))
+# ggplotly(p)
+
+
+
+# BIND ALL CORRECTED DATA TOGETHER ----------------------------------------
+
+daterange <- seq(ymd("2019-05-01"), ymd("2020-11-01"), by = "month")
+
+dat.cor <- bind_rows(A1G, A2G, A3G, A4G, B1G, B2G, B3G, B4G, B5G, C1G, C2G, C3G, C4G, ECRKG, WCRKG)
+
+
+# p <- dat.cor %>% 
+#   ggplot()+
+#   geom_line(aes(x = datetime, y = wl, colour = site))+
+#   geom_point(aes(x = datetime, y = gtw_cm_man, colour = site))
+# 
+# ggplotly(p)
+
+
+daily.data <- dat.cor %>% 
+  select(date,head,geom) %>% 
+  group_by(date,site) %>% 
+  mutate(head = mean(head, na.rm = T)) %>% 
+  distinct() 
+
+monthly.data <- daily.data%>% 
+  filter(date %in% daterange) %>% 
+  ungroup() %>% 
+  select(date,head,geom)
+
+# p <- monthly.data %>% 
+#   ggplot()+
+#   geom_line(aes(x = date, y = head, colour = site))
+# ggplotly(p)
+# 
 
 # -----------------------------
 
@@ -455,7 +513,30 @@ SLIMS <-  wldat %>%
   filter(abs(raw - lag(raw, 1)) <= 10) %>% 
   mutate(toc.tw = (raw*m+b)/10,
          wl = toctg_cm - toc.tw+40,
-         head = wl+elevation_m)
+         head = (wl/10)+elevation_m)
+
+# write_csv(SLIMS, "Level-Logger-Data-Compiling/SLIM.csv")
+
+
+slim_monthly <- SLIMS %>% 
+  ungroup() %>% 
+  select(date,wl) %>% 
+  group_by(date) %>% 
+  summarise(wl = mean(wl, na.rm = T)) %>% 
+  filter(date %in% daterange)
+
+slim_geo <- st_read("Level-Logger-Data-Compiling/river_data/Slim_Points.gpkg")
+
+slim <- nest(slim_monthly, data = everything())
+
+slim <- bind_cols(slim,slim_geo) %>% 
+  unnest(data) 
+
+slim <- slim %>% 
+  mutate(head = elevations + (wl/10)) %>% 
+  select(date,head,geom)
+
+
 
 
 
@@ -465,80 +546,52 @@ SLIMS <-  wldat %>%
 #   geom_point(aes(x = datetime, y = gtw_cm_man), colour = "red")
 # ggplotly(p)
  
-# -----------------------------
-
-# Looks good aside from the depressingly short time period.
-
-WCRKS <- wldat %>% 
-  filter(site == "AFS-D-WCRK") %>% 
-  mutate(toc.tw = raw*m+b,
-         wl = toctg_cm - toc.tw,
-         head = wl+elevation_m)
-
-# -----------------------------
-
-# Pretty good, though I'm alittle concerned it could be wet sediments.
-
-ECRKS <- wldat %>% 
-  filter(site == "AFS-D-ECRK") %>% 
-  mutate(toc.tw = raw*m+b,
-         wl = toctg_cm - toc.tw,
-         head = wl+elevation_m)
-
-# p <- ECRKS %>%
-#   ggplot()+
-#   geom_point(aes(x = datetime, y = raw, colour = site))
-# ggplotly(p)
 
 # --------------------------------------------------------------------------------------------------------------------
-# BIND ALL CORRECTED DATA TOGETHER ----------------------------------------
 
 
-dat.cor <- bind_rows(A1G, A2G, A3G, A4G, B1G, B2G, B3G, B4G, B5G, C1G, C2G, C3G, C4G, ECRKG, WCRKG, SLIMS)
+# Binding Fraser data -----------------------------------------------------
+
+fraser_geo <- st_read("Level-Logger-Data-Compiling/river_data/Fraser_Points.gpkg")
 
 
-p <- dat.cor %>% 
-  ggplot()+
-  geom_line(aes(x = datetime, y = wl, colour = site))+
-  geom_point(aes(x = datetime, y = gtw_cm_man, colour = site))
-  
-ggplotly(p)
+fraser_monthly <- read_csv("Level-Logger-Data-Compiling/river_data/FRASER.csv") %>% 
+  select(date,wl) %>%
+  mutate(date = mdy(date)) %>% 
+  group_by(date) %>% 
+  summarise(wl = mean(wl, na.rm = T)) %>% 
+  filter(date %in% daterange)
 
+fraser <- nest(fraser_monthly, data = everything())
 
-daily.data <- dat.cor %>% 
-  select(site,date,head,geom) %>% 
-  group_by(date,site) %>% 
-  mutate(head = mean(head, na.rm = T)) %>% 
-  distinct()
+fraser <- bind_cols(fraser,fraser_geo) %>% 
+  unnest(data)
 
-p <- daily.data %>% 
-  ggplot()+
-  geom_line(aes(x = date, y = head, colour = site))
-ggplotly(p)
+fraser <- fraser %>% 
+  mutate(head = elevation + (wl/10)) %>% 
+  select(date,head,geom)
 
+# Bind river data to rest of data. ----------------------------------------
 
-# Compile into biweekly geopackages for kriging ---------------------------
+final_monthly <- full_join(monthly.data, fraser)
+final_monthly <- full_join(final_monthly,slim)
 
-# first take daily means
+View(final_monthly)
 
-
-
-
-daterange <- seq(ymd("2019-05-01"), ymd("2020-11-01"), by = "month")
 
 # daterange = "2020-07-01"
 # 
 # mapview(daily.wl)
 
-WL_SHAPER <- function(daterange){
-  
-  daily.wl <- st_as_sf(daily.data) %>% 
-    dplyr::select(date,site,head, geom) %>% 
-    filter(date == daterange) %>% 
-    filter(site != "SLIM")
-  
-  st_write(daily.wl, paste0("Level-Logger-Data-Compiling/daily_wl_gpkgs/", daterange, ".gpkg"))
-}
-
-lapply(daterange,WL_SHAPER)
+# WL_SHAPER <- function(daterange){
+#   
+#   daily.wl <- st_as_sf(daily.data) %>% 
+#     dplyr::select(date,site,head, geom) %>% 
+#     filter(date == daterange) %>% 
+#     filter(site != "SLIM")
+#   
+#   st_write(daily.wl, paste0("Level-Logger-Data-Compiling/daily_wl_gpkgs/", daterange, ".gpkg"))
+# }
+# 
+# lapply(daterange,WL_SHAPER)
 
