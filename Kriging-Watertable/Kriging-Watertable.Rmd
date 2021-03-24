@@ -27,21 +27,23 @@ library(sp)    # Used for the spsample function
 ```{r KrigeR, echo = FALSE}
 # Read in the single day WL data ------------------------------------------
 
-dataday <- ymd("2019-04-01")
+dataday <- ymd("2020-06-01")
+crs_utm10 <- CRS(SRS_string = "EPSG:32610")
 
-WL <- as_Spatial(st_read(paste0("Daily_WL_gpkgs/", dataday, ".gpkg")))
+WL <- as_Spatial(st_read(paste0("Level-Logger-Data-Compiling/daily_wl_gpkgs/", dataday, ".gpkg")))
+  proj4string(WL) <- crs_utm10
 
 # Read in Geographic Data -------------------------------------------------
-B <-  as_Spatial(st_read("AOI.gpkg"))
+B <-  as_Spatial(st_read("Kriging-Watertable/AOI.gpkg"))
+    proj4string(B) <- crs_utm10
 WL@bbox <- B@bbox
 
 # Plot to check
 
 tm_shape(B) + tm_polygons() +
   tm_shape(WL) +
-  tm_dots(col="cal_wte_m", palette = "RdBu", auto.palette.mapping = FALSE,
+  tm_dots(col="head", palette = "Blues", auto.palette.mapping = FALSE,
           title="Water table elevation /n(in m)", size=0.7) +
-  tm_text("cal_wte_m", just="left", xmod=.5, size = 0.7) +
   tm_legend(legend.outside=TRUE)
 
 
@@ -57,13 +59,13 @@ names(grd)  <- c("X","Y")
 coordinates(grd) <- c("X","Y")
 gridded(grd)  <- TRUE
 fullgrid(grd) <- TRUE
-proj4string(grd) <- proj4string(WL)    
+proj4string(grd) <- crs_utm10  
 
 
 # Define first order polynomial equation (This is for detrending in the variogram step)
 # !!!!!! I will likely need to determine what an appropriate detrending approach to use is!!!!
 
-f.1 <- as.formula(cal_wte_m ~ 1)
+f.1 <- as.formula(head ~ 1)
 
 # Add X and Y to WL
 WL$X <- coordinates(WL)[,1]
@@ -102,14 +104,14 @@ dat.krg <- krige(formula = f.1, locations = WL, newdata = grd, model = dat.fit)
 r <- raster(dat.krg)
 r.m <- mask(r, B)
 
-WL$wt_elev <- sprintf("%0.1f", WL$cal_wte_m)
+WL$wt_elev <- sprintf("%0.1f", WL$head)
 
 # Plot the map
 tm_shape(r.m) + 
       tm_raster(n=10, palette="RdBu", auto.palette.mapping=FALSE, 
             title="Water Table Elevation /n(m.a.s.l)") +
   tm_shape(WL)  + tm_dots(size=0.2) +
-  tm_text('wt_elev', just="left", xmod=.5, size = 0.7) +
+  tm_text('head', just="left", xmod=.5, size = 0.7) +
   tm_legend(legend.outside=TRUE)
 
 ```

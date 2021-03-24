@@ -468,7 +468,6 @@ ECRKS <- wldat %>%
 
 # BIND ALL CORRECTED DATA TOGETHER ----------------------------------------
 
-daterange <- seq(ymd("2019-05-01"), ymd("2020-11-01"), by = "month")
 
 dat.cor <- bind_rows(A1G, A2G, A3G, A4G, B1G, B2G, B3G, B4G, B5G, C1G, C2G, C3G, C4G, ECRKG, WCRKG)
 
@@ -486,6 +485,12 @@ daily.data <- dat.cor %>%
   group_by(date,site) %>% 
   mutate(head = mean(head, na.rm = T)) %>% 
   distinct() 
+
+
+# Filter down to first of month dates
+
+daterange <- seq(ymd("2019-05-01"), ymd("2020-11-01"), by = "month")
+
 
 monthly.data <- daily.data%>% 
   filter(date %in% daterange) %>% 
