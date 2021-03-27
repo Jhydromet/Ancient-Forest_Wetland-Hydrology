@@ -220,8 +220,8 @@ p
 ```{r,echo=FALSE, message=FALSE, warning=FALSE}
 lag.dat <- data %>%
   dplyr::group_by(site) %>% 
-  dplyr::filter(lagg <= 0 & lagg >= -50) %>% 
-  dplyr::filter(crcor == max(crcor)) %>%
+  dplyr::filter(lagg <= 0) %>% 
+  dplyr::filter(crcor >= ciline & crcor == max(crcor)) %>%
   dplyr::filter(site != "B3-G" & site != "A3-G") %>% 
   dplyr::mutate(lag.hrs = lagg/4) %>% 
   dplyr::select(site,lagg,lag.hrs,crcor)
@@ -242,7 +242,7 @@ kable(lag.summary) %>%
 
 ### First difference detrended data
 
-```{r 6 hr rolling mean, 01 June to 01 Nov,echo=FALSE, message=FALSE, warning=FALSE}
+```{r , echo=FALSE, message=FALSE, warning=FALSE}
 ########################################################
 
 
@@ -333,4 +333,10 @@ kable(lag.summary) %>%
   kable_material()
 ```
 
+## Thoughts..
+
+
+I don't have a great grasp of the necessity of detrending here, but the resultant plots from the detrended ccf look far more reasonable than those of the non-detrended. My problem though is that I don't really think that the water levels would consistently respond in a few hours after rainfall unless I had serious issues with my well installations.
+
+Also, identifying the peak correlation for the detrended plots is challenging, I'm not sure its best to simply grab the peak value. So far I am selecting the peak positive correlation that happens before lag 50, but I think this could be improved.
 
