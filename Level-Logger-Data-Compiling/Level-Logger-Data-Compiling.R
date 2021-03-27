@@ -472,19 +472,35 @@ ECRKS <- wldat %>%
 dat.cor <- bind_rows(A1G, A2G, A3G, A4G, B1G, B2G, B3G, B4G, B5G, C1G, C2G, C3G, C4G, ECRKG, WCRKG)
 
 
-# p <- dat.cor %>% 
-#   ggplot()+
-#   geom_line(aes(x = datetime, y = wl, colour = site))+
-#   geom_point(aes(x = datetime, y = gtw_cm_man, colour = site))
-# 
-# ggplotly(p)
+p <- dat.cor %>%
+  ggplot()+
+  geom_line(aes(x = datetime, y = wl, colour = site))+
+  geom_point(aes(x = datetime, y = gtw_cm_man, colour = site))
+
+ggplotly(p)
 
 
 daily.data <- dat.cor %>% 
-  select(date,head,geom) %>% 
+  select(date,head,geom,wl,gtw_cm_man) %>% 
   group_by(date,site) %>% 
-  mutate(head = mean(head, na.rm = T)) %>% 
-  distinct() 
+  mutate(head = mean(head, na.rm = T),
+         wl = mean (wl, na.rm = T),
+         trans= substr(site,1,1),
+         man.wl = mean(gtw_cm_man)) %>% 
+  distinct()
+
+
+
+p <- daily.data %>%
+  filter(site!="ECRK" & site != "WCRK" & site !="B3" & site != "A3") %>% 
+  ggplot()+
+  geom_line(aes(x = date, y = wl, colour = site))+
+  geom_point(aes(x = date, y = gtw_cm_man, colour = site))+
+  geom_abline(slope = 0, intercept = 0, linetype = "dashed")+
+  facet_grid(rows = "trans", scales = "free")+
+  labs(x = "Date", y = "Water Level (cm)")+
+  scale_colour_discrete(name = "Site")
+ggplotly(p)
 
 
 # Filter down to first of month dates
@@ -545,6 +561,7 @@ slim <- slim %>%
 
 
 
+
 # p <- SLIMS %>% 
 #   ggplot()+
 #   geom_line(aes(x = datetime, y = wl))+
@@ -579,6 +596,7 @@ final_monthly <- full_join(monthly.data, fraser)
 final_monthly <- full_join(final_monthly,slim)
 
 
+
 # Write out monthly geopackages for Kriging -------------------------------
 
 
@@ -590,6 +608,8 @@ monthly_gpkg_writer <- function(daterange){
 }
 
 
-daterange %>% 
+# Applying the geopackage outputter here:
+
+daterange %>%
   map(monthly_gpkg_writer)
 

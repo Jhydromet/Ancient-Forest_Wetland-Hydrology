@@ -13,6 +13,8 @@ library(gridExtra)
 library(roll)
 library(plotly)
 library(kableExtra)
+library(tseries)
+library(tidymodels)
 
 # This script is for cross correlation of rainfall and water level data
 ```
@@ -23,7 +25,7 @@ Some testing was done on length of rolling mean. I applied 6 hrs (24 15min times
 
 
 ```{r,echo=FALSE, message=FALSE,warning=FALSE}
-rain <- read_csv("AF_Station.csv") %>%
+rain <- read_csv("Cross-Correlation-Precip-Watertable/AF_Station.csv") %>%
   filter(Parameter == "Rain_Tot") %>% 
   pivot_wider(names_from = "Parameter", values_from = "Value") %>% 
   dplyr::select(-Site) %>% 
@@ -35,7 +37,7 @@ roll_rain <- rain %>%
                 mn.rain.96 = roll_mean(rain_mm_tot, width = 96))
 
 
-files <- dir(pattern = "*-G.csv", path = "GW-Data") # pull the file names from folder
+files <- dir(pattern = "*-G.csv", path = "Cross-Correlation-Precip-Watertable/GW-Data") # pull the file names from folder
 
 #files <- "A1-G.csv"
 
@@ -49,7 +51,7 @@ WlBinder <- function(files) {
   
   # Load in and tidy data ---------------------------------------------------
   
-  wl <- read_csv(paste0("GW-Data/", files)) %>% 
+  wl <- read_csv(paste0("Cross-Correlation-Precip-Watertable/GW-Data/", files)) %>% 
     dplyr::mutate(time = replace_na(time, 00:00:00),
       timestamp = dmy_hms(paste(date,time))) %>% 
     dplyr::select(timestamp, raw_val,site.no) %>% 
@@ -79,100 +81,82 @@ data <- files %>%
 #   
 # ggplotly(p24)
 
-p48 <- data %>% 
-  ggplot()+
-  geom_line(aes(timestamp, raw_val, colour = site.no), size = 1)+
-  geom_line(aes(timestamp, mn.val.48, group = site.no), linetype="dashed")+
-  labs(title = "12Hr rolling mean Water levels")
-  
-p48
-
-rain.p48 <- data %>% 
-  ggplot()+
-  geom_col(aes(timestamp,rain_mm_tot))+
-  geom_col(aes(timestamp,mn.rain.48),colour = "#6699CC75")+
-  ylim(c(0,10))+
-  labs(title = "12 hr rolling mean rainfall (blue)")
-rain.p48
+# p48 <- data %>% 
+#   ggplot()+
+#   geom_line(aes(timestamp, raw_val, colour = site.no), size = 1)+
+#   geom_line(aes(timestamp, mn.val.48, group = site.no), linetype="dashed")+
+#   labs(title = "12Hr rolling mean Water levels")
+#   
+# p48
+# 
+# rain.p48 <- data %>% 
+#   ggplot()+
+#   geom_col(aes(timestamp,rain_mm_tot))+
+#   geom_col(aes(timestamp,mn.rain.48),colour = "#6699CC75")+
+#   ylim(c(0,10))+
+#   labs(title = "12 hr rolling mean rainfall (blue)")
+# rain.p48
 
 
 ```
 
 
 
-# 02 Cross Correlation Plots over Full Fimespan
+# 02 Cross Correlation of 6 hr rolling mean 2019 data
 
-## Raw and 12 hr rolling mean cross correlation from entire dataset
+## Method
 
-When I correlate the raw & 12 hr rolling mean datasets over the full period, the influence of snowmelt decreases teh significance of the cross correlation between rain and water levels. The rolling mean does appear to improve correlation coefficients but the water level data clearly have trends that reduce these.
+I trimmed the data to the period of 2019-06-01 to 2019-11-01 to avoid snowmelt influence. I then omitted wells B3 (very spiky data) and A3 (sensor drift). I tested for stationarity using Kwiatkowski-Phillips-Schmidt-Shin (KPSS) and Augmented Dickey Fuller (ADF) tests, but found mixed results. Eight sites were found to have stationarity using ADF (p <0.05), but all failed KPSS (p >0.05). I then tried taking first difference of the data and that caused all to become stationary with ADF, and 6 with KPSS.
 
-```{r Raw data cross corr,echo=FALSE, message=FALSE,warning=FALSE}
-
-files <- dir(pattern = "*-G.csv", path = "GW-Data")
-
-#files <- "A1-G.csv"
+I'm still unsure of how best to handle detrending in this case, so I've run cross correlation on both the original data (6 hr rolling mean) and the first difference dataset.
 
 
-# Correlate and Plot Function ---------------------------------------------
+### Non-detrended data
 
+```{r 6 hr rolling mean, 01 June to 01 Nov,echo=FALSE, message=FALSE, warning=FALSE}
 
-CrossCorrelateR <- function(files) {
-
-  sites = substr(files, start = 0, stop = 4)
-  
-  # Load in and tidy data ---------------------------------------------------
-  
-  wl <- read_csv(paste0("GW-Data/", files)) %>% 
-    dplyr::mutate(time = replace_na(time, 00:00:00),
-      timestamp = dmy_hms(paste(date,time))) %>% 
-    dplyr::select(timestamp, raw_val,site.no)
-  
-  
-  # Join the data together and drop all timestamps with NA -----------------
-  
-  dat <- full_join(rain,wl) %>% 
-    drop_na() %>% 
-    distinct() %>% 
-    filter(date(timestamp) >= "2019-04-01" & date(timestamp) <= "2019-11-01")
-  
-  bccf <-  ccf(dat$rain_mm_tot, dat$raw_val,plot = FALSE, lag = 250)
-  
-  bacfdf <- with(bccf, data.frame(lag, acf))%>%
-    rename(crcor = "acf", lagg = "lag") %>% 
-    mutate(site = sites)
-
-}
-
-data <- files %>% 
-  map(CrossCorrelateR) %>% 
-  reduce(rbind)
-
-A <- data %>% filter(site == "A2-G")
-
-
-conf.level <- 0.95
-ciline <- qnorm((1 - conf.level)/2)/sqrt(length(A$lagg))
-
-p <- data %>% 
-  ggplot()+
-  geom_line(aes(lagg,crcor,colour = site), size = .9)+ 
-  geom_hline(aes(yintercept = 0)) +
-  geom_hline(aes(yintercept = ciline), linetype = 2, color = 'darkblue') +
-  geom_hline(aes(yintercept = -ciline), linetype = 2, color = 'darkblue')+
-  # geom_segment(mapping = aes(xend = lagg, yend = 0))+
-  labs(x = "Lag (15 Min)", y = "Cross-Correlation", title = paste("Raw Data Rain to Water Level Correlation"))
-  
-p 
-```
-
-```{r 12hr roll mean cross corr,echo=FALSE, message=FALSE, warning=FALSE}
 roll_rain <- rain %>% 
-  dplyr::mutate(mn.rain = roll_mean(rain_mm_tot, width = 48))
+  dplyr::mutate(mn.rain = roll_mean(rain_mm_tot, width = 24)) %>% 
+  drop_na()
 
+files <- dir(pattern = "*-G.csv", path = "Cross-Correlation-Precip-Watertable/GW-Data")
 
-files  <- dir(pattern = "*-G.csv", path = "GW-Data")
+binder <- function(files) {
 
-#files <- "A1-G.csv"
+  sites = substr(files, start = 0, stop = 4)
+  
+  # Load in and tidy data ---------------------------------------------------
+  
+  wl <- read_csv(paste0("Cross-Correlation-Precip-Watertable/GW-Data/", files)) %>% 
+    dplyr::mutate(time = replace_na(time, 00:00:00),
+      timestamp = dmy_hms(paste(date,time))) %>% 
+    dplyr::select(timestamp, raw_val,site.no) %>% 
+    dplyr::mutate(mn.val = roll_mean(raw_val, width = 24)) %>% 
+    drop_na()
+}
+
+wldat <- files %>% 
+  map(binder) %>% 
+  reduce(bind_rows)
+
+# testing for stationarity ---------------------------------------------------
+
+wl.stat <- wldat %>% 
+  group_by(site.no) %>% 
+  summarise(adf = tidy(adf.test(mn.val))$p.value,
+            adf.diff = tidy(adf.test(diff(mn.val,1)))$p.value,
+            kpss = tidy(kpss.test(mn.val))$p.value,
+            kpss.diff = tidy(kpss.test(diff(mn.val,1)))$p.value)
+
+wl.stat
+
+rain.stat <- roll_rain %>% 
+  summarise(adf = tidy(adf.test(mn.rain))$p.value,
+            adf.diff = tidy(adf.test(diff(mn.rain,1)))$p.value,
+            kpss = tidy(kpss.test(mn.rain))$p.value,
+            kpss.diff = tidy(kpss.test(diff(mn.rain,1)))$p.value)
+
+#files <- "A2-G.csv"
 
 
 # Correlate and Plot Function ---------------------------------------------
@@ -181,87 +165,112 @@ files  <- dir(pattern = "*-G.csv", path = "GW-Data")
 CrossCorrelateR <- function(files) {
 
   sites = substr(files, start = 0, stop = 4)
+
+  # Load in and tidy data ---------------------------------------------------
+
+  wl <- read_csv(paste0("Cross-Correlation-Precip-Watertable/GW-Data/", files)) %>%
+    dplyr::mutate(time = replace_na(time, 00:00:00),
+      timestamp = dmy_hms(paste(date,time))) %>%
+    dplyr::select(timestamp, raw_val,site.no) %>%
+    dplyr::mutate(mn.val = roll_mean(raw_val, width = 24))
+
+  wl <- drop_na(wl)
+
+  adf.test(wl$mn.val)
+  kpss.test(wl$mn.val)
+  # Join the data together and drop all timestamps with NA -----------------
+
+  dat <- full_join(roll_rain,wl) %>%
+    drop_na() %>%
+    distinct() %>%
+    filter(date(timestamp) >= "2019-06-01" & date(timestamp) <= "2019-11-01")
+
+  bccf <-  ccf(dat$mn.rain, dat$mn.val,plot = TRUE, lag = 250, ylab = paste0("ccf ", sites))
+
+  bacfdf <- with(bccf, data.frame(lag, acf))%>%
+    rename(crcor = "acf", lagg = "lag") %>%
+    mutate(site = sites)
+
+}
+
+data <- files %>%
+  map(CrossCorrelateR) %>%
+  reduce(rbind) %>%
+  filter(site != "B3-G") %>%
+  filter(site != "A3-G")
+
+
+
+
+conf.level <- 0.95
+ciline <- qnorm((1 + conf.level)/2)/sqrt(14781) # 14781 is the number of data pts in each timeseries
+
+p <- data %>%
+  ggplot()+
+  geom_line(aes(lagg,crcor,colour = site), size = .9)+
+  geom_hline(aes(yintercept = 0)) +
+  geom_hline(aes(yintercept = ciline), linetype = 2, color = 'darkblue') +
+  geom_hline(aes(yintercept = -ciline), linetype = 2, color = 'darkblue')+
+  # geom_segment(mapping = aes(xend = lagg, yend = 0))+
+  labs(x = "Lag (15 Min)", y = "Cross-Correlation", title = paste(" 12 hr rollmean Rain to Water Level Correlation 01 Jun - 01 Nov 2019"))
+
+p
+```
+
+```{r,echo=FALSE, message=FALSE, warning=FALSE}
+lag.dat <- data %>%
+  dplyr::group_by(site) %>% 
+  dplyr::filter(lagg <= 0 & lagg >= -50) %>% 
+  dplyr::filter(crcor == max(crcor)) %>%
+  dplyr::filter(site != "B3-G" & site != "A3-G") %>% 
+  dplyr::mutate(lag.hrs = lagg/4) %>% 
+  dplyr::select(site,lagg,lag.hrs,crcor)
+
+kable(lag.dat) %>% 
+  kable_material()
+```
+
+```{r,echo=FALSE, message=FALSE, warning=FALSE}
+lag.summary <- lag.dat %>%
+  dplyr::ungroup() %>% 
+  dplyr::summarise(mn.lag.hrs = mean(lag.hrs),
+                   sd.lag.hrs = sd(lag.hrs))
+
+kable(lag.summary) %>% 
+  kable_material()
+```
+
+### First difference detrended data
+
+```{r 6 hr rolling mean, 01 June to 01 Nov,echo=FALSE, message=FALSE, warning=FALSE}
+########################################################
+
+
+
+CrossCorrelateR <- function(files) {
+
+  sites = substr(files, start = 0, stop = 4)
   
   # Load in and tidy data ---------------------------------------------------
   
-  wl <- read_csv(paste0("GW-Data/", files)) %>% 
+  wl <- read_csv(paste0("Cross-Correlation-Precip-Watertable/GW-Data/", files)) %>% 
     dplyr::mutate(time = replace_na(time, 00:00:00),
       timestamp = dmy_hms(paste(date,time))) %>% 
     dplyr::select(timestamp, raw_val,site.no) %>% 
-    dplyr::mutate(mn.val = roll_mean(raw_val, width = 48))
+    dplyr::mutate(mn.val = roll_mean(raw_val, width = 24))
   
+  wl <- drop_na(wl)
   
+  adf.test(wl$mn.val)
+  kpss.test(wl$mn.val)
   # Join the data together and drop all timestamps with NA -----------------
   
   dat <- full_join(roll_rain,wl) %>% 
     drop_na() %>% 
     distinct() %>% 
-    filter(date(timestamp) >= "2019-04-01" & date(timestamp) <= "2019-11-01")
-  
-  bccf <-  ccf(dat$mn.rain, dat$mn.val,plot = FALSE, lag = 250)
-  
-  bacfdf <- with(bccf, data.frame(lag, acf))%>%
-    rename(crcor = "acf", lagg = "lag") %>% 
-    mutate(site = sites)
-
-}
-
-data <- files %>% 
-  map(CrossCorrelateR) %>% 
-  reduce(rbind)
-
-A <- data %>% filter(site == "A2-G")
-
-
-conf.level <- 0.95
-ciline <- qnorm((1 - conf.level)/2)/sqrt(length(A$lagg))
-
-p <- data %>% 
-  ggplot()+
-  geom_line(aes(lagg,crcor,colour = site), size = .9)+ 
-  geom_hline(aes(yintercept = 0)) +
-  geom_hline(aes(yintercept = ciline), linetype = 2, color = 'darkblue') +
-  geom_hline(aes(yintercept = -ciline), linetype = 2, color = 'darkblue')+
-  # geom_segment(mapping = aes(xend = lagg, yend = 0))+
-  labs(x = "Lag (15 Min)", y = "Cross-Correlation", title = paste("12 hr rollmean Rain to Water Level Correlation"))
-  
-p 
-```
-
-# 03 Cross Correlation of Rain Only Period
-Trimming the analysis period to the truly snow free period improves correlation significance in the raw data, with even more improved 12 hr mean correlation. This suggests that the snowmelt influence does affect this analysis strongly, as does noise in the water level data.The rolling mean also generalizes the rain data to reduce the impact of sporadic rain versus periods of rain.
-
-
-```{r Raw data from 01 June to 01 Nov,echo=FALSE, message=FALSE,warning=FALSE}
-
-files <- dir(pattern = "*-G.csv", path = "GW-Data") # pull the file names from folder
-
-#files <- "A1-G.csv"
-
-
-# Correlate and Plot Function ---------------------------------------------
-
-
-CrossCorrelateR <- function(files) {
-
-  sites = substr(files, start = 0, stop = 4)
-  
-  # Load in and tidy data ---------------------------------------------------
-  
-  wl <- read_csv(paste0("GW-Data/", files)) %>% 
-    dplyr::mutate(time = replace_na(time, 00:00:00),
-      timestamp = dmy_hms(paste(date,time))) %>% 
-    dplyr::select(timestamp, raw_val,site.no)
-  
-  
-  # Join the data together and drop all timestamps with NA -----------------
-  
-  dat <- full_join(rain,wl) %>% 
-    drop_na() %>% 
-    distinct() %>% 
     filter(date(timestamp) >= "2019-06-01" & date(timestamp) <= "2019-11-01")
   
-  bccf <-  ccf(dat$rain_mm_tot, dat$raw_val,plot = FALSE, lag = 250)
+  bccf <-  ccf(diff(dat$mn.rain,1), diff(dat$mn.val,1),plot = TRUE, lag = 250, ylab = paste0("diff ccf ", sites))
   
   bacfdf <- with(bccf, data.frame(lag, acf))%>%
     rename(crcor = "acf", lagg = "lag") %>% 
@@ -271,74 +280,13 @@ CrossCorrelateR <- function(files) {
 
 data <- files %>% 
   map(CrossCorrelateR) %>% 
-  reduce(rbind)
-
-A <- data %>% filter(site == "A2-G")
-
-
-conf.level <- 0.95
-ciline <- qnorm((1 - conf.level)/2)/sqrt(length(A$lagg))
-
-p <- data %>% 
-  ggplot()+
-  geom_line(aes(lagg,crcor,colour = site), size = .9)+ 
-  geom_hline(aes(yintercept = 0)) +
-  geom_hline(aes(yintercept = ciline), linetype = 2, color = 'darkblue') +
-  geom_hline(aes(yintercept = -ciline), linetype = 2, color = 'darkblue')+
-  # geom_segment(mapping = aes(xend = lagg, yend = 0))+
-  labs(x = "Lag (15 Min)", y = "Cross-Correlation", title = paste("Raw Rain to Water Level Correlation 01 Jun - 01 Nov 2019"))
-  
-p 
-```
-
-
-```{r 12 hr rolling mean, 01 June to 01 Nov,echo=FALSE, message=FALSE, warning=FALSE}
-
-files <- dir(pattern = "*-G.csv", path = "GW-Data")
-
-#files <- "A1-G.csv"
-
-
-# Correlate and Plot Function ---------------------------------------------
-
-
-CrossCorrelateR <- function(files) {
-
-  sites = substr(files, start = 0, stop = 4)
-  
-  # Load in and tidy data ---------------------------------------------------
-  
-  wl <- read_csv(paste0("GW-Data/", files)) %>% 
-    dplyr::mutate(time = replace_na(time, 00:00:00),
-      timestamp = dmy_hms(paste(date,time))) %>% 
-    dplyr::select(timestamp, raw_val,site.no) %>% 
-    dplyr::mutate(mn.val = roll_mean(raw_val, width = 48))
-  
-  
-  # Join the data together and drop all timestamps with NA -----------------
-  
-  dat <- full_join(roll_rain,wl) %>% 
-    drop_na() %>% 
-    distinct() %>% 
-    filter(date(timestamp) >= "2019-06-01" & date(timestamp) <= "2019-11-01")
-  
-  bccf <-  ccf(dat$mn.rain, dat$mn.val,plot = FALSE, lag = 250)
-  
-  bacfdf <- with(bccf, data.frame(lag, acf))%>%
-    rename(crcor = "acf", lagg = "lag") %>% 
-    mutate(site = sites)
-
-}
-
-data <- files %>% 
-  map(CrossCorrelateR) %>% 
-  reduce(rbind)
-
-A <- data %>% filter(site == "A2-G")
+  reduce(rbind) %>% 
+  filter(site != "B3-G") %>% 
+  filter(site != "A3-G")
 
 
 conf.level <- 0.95
-ciline <- qnorm((1 - conf.level)/2)/sqrt(length(A$lagg))
+ciline <- qnorm((1 + conf.level)/2)/sqrt(14781) # 14781 is the number of data pts in each
 
 p <- data %>% 
   ggplot()+
@@ -349,20 +297,21 @@ p <- data %>%
   # geom_segment(mapping = aes(xend = lagg, yend = 0))+
   labs(x = "Lag (15 Min)", y = "Cross-Correlation", title = paste(" 12 hr rollmean Rain to Water Level Correlation 01 Jun - 01 Nov 2019"))
   
-p 
-
+ggplotly(p)
 
 ```
 
 
-#  04 Summary Values
-## Peak positive correlation values over 95% confidence (From last plot)
-Wells A1-G, B4-G, and C2-G did not have significant correlations over the 2019 period. A1-G water table dynamics are likely different from all other sites due to the site being located in peat as opposed to sediment. The timeseries from B4-G is extremely spiky which appears most likely to be due to sensor noise, though could also be due to an open well head causing artificially rapid recharge. The C transect wells are higher in the flow path, in coarser sediments and within an area with limited ponding. It is not clear why the C2-G correlation does not exceed the 95% CI, however its correlation matches well with others in that transect.
+<!-- #  04 Summary Values -->
+<!-- ## Peak positive correlation values over 95% confidence (From last plot) -->
+<!-- Wells A1-G, B4-G, and C2-G did not have significant correlations over the 2019 period. A1-G water table dynamics are likely different from all other sites due to the site being located in peat as opposed to sediment. The timeseries from B4-G is extremely spiky which appears most likely to be due to sensor noise, though could also be due to an open well head causing artificially rapid recharge. The C transect wells are higher in the flow path, in coarser sediments and within an area with limited ponding. It is not clear why the C2-G correlation does not exceed the 95% CI, however its correlation matches well with others in that transect. -->
 
 ```{r,echo=FALSE, message=FALSE, warning=FALSE}
 lag.dat <- data %>%
   dplyr::group_by(site) %>% 
-  dplyr::filter(crcor == max(crcor) & crcor >= 0.08756473) %>% 
+  dplyr::filter(lagg <= 0 & lagg >= -50) %>% 
+  dplyr::filter(crcor == max(crcor)) %>%
+  dplyr::filter(site != "B3-G" & site != "A3-G") %>% 
   dplyr::mutate(lag.hrs = lagg/4) %>% 
   dplyr::select(site,lagg,lag.hrs,crcor)
 
@@ -371,8 +320,8 @@ kable(lag.dat) %>%
 ```
 
 
-## Mean and standard deviation of significant correlations
-The time lag between rainfall and water level timeseries correlation is an average of 20.6 hrs, with a standard deviation of 15.6 hrs. This range may be due to a range in infiltration rates (due to range in sediment composition), variability in seal of well head at the ground surface (creating artificially fast recharge pathways, likely at A4-G) or ponding at sites lower in the gradient (rain direct to an above ground water table).
+<!-- ## Mean and standard deviation of significant correlations -->
+<!-- The time lag between rainfall and water level timeseries correlation is an average of 20.6 hrs, with a standard deviation of 15.6 hrs. This range may be due to a range in infiltration rates (due to range in sediment composition), variability in seal of well head at the ground surface (creating artificially fast recharge pathways, likely at A4-G) or ponding at sites lower in the gradient (rain direct to an above ground water table). -->
 
 ```{r,echo=FALSE, message=FALSE, warning=FALSE}
 lag.summary <- lag.dat %>%
