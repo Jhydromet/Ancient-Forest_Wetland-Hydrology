@@ -481,7 +481,7 @@ ggplotly(p)
 
 
 daily.data <- dat.cor %>% 
-  select(date,head,geom,wl,gtw_cm_man) %>% 
+  select(date,head,geom,wl,gtw_cm_man,elevation_m) %>% 
   group_by(date,site) %>% 
   mutate(head = mean(head, na.rm = T),
          wl = mean (wl, na.rm = T),
@@ -554,8 +554,9 @@ slim <- bind_cols(slim,slim_geo) %>%
   unnest(data) 
 
 slim <- slim %>% 
-  mutate(head = elevations + (wl/10)) %>% 
-  select(date,head,geom)
+  mutate(head = elevations + (wl/10),
+         elevation_m = elevations) %>% 
+  select(date,head,geom, elevation_m)
 
 
 
@@ -587,8 +588,9 @@ fraser <- bind_cols(fraser,fraser_geo) %>%
   unnest(data)
 
 fraser <- fraser %>% 
-  mutate(head = elevation + (wl/10)) %>% 
-  select(date,head,geom)
+  mutate(head = elevation + (wl/10),
+         elevation_m = elevation) %>% 
+  select(date,head,geom, elevation_m)
 
 # Bind river data to rest of data. ----------------------------------------
 
@@ -610,6 +612,7 @@ monthly_gpkg_writer <- function(daterange){
 
 # Applying the geopackage outputter here:
 
-daterange %>%
-  map(monthly_gpkg_writer)
+# daterange %>%
+#   map(monthly_gpkg_writer)
+
 
