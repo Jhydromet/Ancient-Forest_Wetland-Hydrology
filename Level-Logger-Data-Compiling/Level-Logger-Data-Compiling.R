@@ -598,18 +598,23 @@ fraser <- fraser %>%
 final_monthly <- full_join(monthly.data, fraser)
 final_monthly <- full_join(final_monthly,slim)
 
-
+# daterange = "2020-08-01"
 
 # Write out monthly geopackages for Kriging -------------------------------
 
-
+B <-  st_read("Kriging-Watertable/AOI.gpkg")
 
 monthly_gpkg_writer <- function(daterange){
   monthly_geo <- st_as_sf(final_monthly) %>% 
     filter(date == daterange)
-  st_write(monthly_geo, paste0("Level-Logger-Data-Compiling/daily_wl_gpkgs/", daterange, ".gpkg"))
+  filtered <- sf::st_filter(x = monthly_geo, y = B, .pred = st_intersects)
+  st_write(filtered, paste0("Level-Logger-Data-Compiling/daily_wl_gpkgs/", daterange, ".gpkg"))
 }
 
+
+# ggplot()+
+#   geom_sf(data =filtered)+
+#   geom_sf(data =B)
 
 # Applying the geopackage outputter here:
 
