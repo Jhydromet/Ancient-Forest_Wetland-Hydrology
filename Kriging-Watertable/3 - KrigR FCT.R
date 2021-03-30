@@ -1,6 +1,5 @@
 library(tidyverse)
 library(lubridate)
-library(broom)
 library(purrr)
 library(sf)
 library(rgdal) # Required for raster I think)
@@ -8,7 +7,7 @@ library(tmap)  # plot spatially
 library(raster)# make raster
 library(gstat) # Use gstat's idw routine
 library(sp)    # Used for the spsample function
-library(mapview)
+
 
 
 dataday = seq(ymd("2019-05-01"), ymd("2020-11-01"), by = "month")
@@ -45,27 +44,22 @@ KrigR <- function(dataday) {
   r.m <- mask(r, B)
   
   writeRaster(r.m, filename= paste0("Kriging-Watertable/kriged_tiffs/", dataday, ".tif"), format="GTiff", overwrite=TRUE)
-  
-  # WL$wt_elev <- sprintf("%0.1f", WL$cal_wte_m)
-
 }
 
 
 dataday %>% 
   map(.f = KrigR)
 
-mapview(B)
-
 
 # basemap <- raster::raster("E:/Jeremy's MSc Research/Hydrometric and GIS/GIS Data/Raster Data/Ancient Forest Wetland LIDAR/AF_DEM.tif")
 # 
-plt <-   tm_shape(r.m) +
-  tm_raster(n=10, palette="Blues", auto.palette.mapping=FALSE,
-            title="Water Table Elevation \n(m.a.s.l)", midpoint = NA) +
-  tm_shape(WL) + tm_markers(size=0.2) +
-  tm_legend(legend.outside=TRUE)
-
-plt
+# plt <-   tm_shape(r.m) +
+#   tm_raster(n=10, palette="Blues", auto.palette.mapping=FALSE,
+#             title="Water Table Elevation \n(m.a.s.l)", midpoint = NA) +
+#   tm_shape(WL) + tm_markers(size=0.2) +
+#   tm_legend(legend.outside=TRUE)
+# 
+# plt
 
 
 # Variance plotting, could be added later to loop? maybe doesnt matter -------------------------
