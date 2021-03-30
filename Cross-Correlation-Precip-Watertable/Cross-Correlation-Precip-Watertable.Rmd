@@ -106,7 +106,7 @@ data <- files %>%
 
 ## Method
 
-I trimmed the data to the period of 2019-06-01 to 2019-11-01 to avoid snowmelt influence. I then omitted wells B3 (very spiky data) and A3 (sensor drift). I tested for stationarity using Kwiatkowski-Phillips-Schmidt-Shin (KPSS) and Augmented Dickey Fuller (ADF) tests, but found mixed results. Eight sites were found to have stationarity using ADF (p <0.05), but all failed KPSS (p >0.05). I then tried taking first difference of the data and that caused all to become stationary with ADF, and 6 with KPSS.
+I trimmed the data to the period of 2019-06-01 to 2019-11-01 to avoid snowmelt influence and applied a 6 hour rolling mean to both rain and water level data. I then omitted wells B3 (very spiky data) and A3 (sensor drift). I tested for stationarity using Kwiatkowski-Phillips-Schmidt-Shin (KPSS) and Augmented Dickey Fuller (ADF) tests, but found mixed results. Eight sites were found to have stationarity using ADF (p <0.05), but all failed KPSS (p >0.05). I then tried taking first difference of the data and that caused all to become stationary with ADF, and 6 with KPSS.
 
 I'm still unsure of how best to handle detrending in this case, so I've run cross correlation on both the original data (6 hr rolling mean) and the first difference dataset.
 

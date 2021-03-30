@@ -27,7 +27,7 @@ library(sp)    # Used for the spsample function
 ```{r KrigeR, echo = FALSE}
 # Read in the single day WL data ------------------------------------------
 
-dataday <- ymd("2020-06-01")
+dataday <- ymd("2019-07-01")
 crs_utm10 <- CRS(SRS_string = "EPSG:32610")
 
 WL <- as_Spatial(st_read(paste0("Level-Logger-Data-Compiling/daily_wl_gpkgs/", dataday, ".gpkg")))
@@ -52,55 +52,74 @@ tm_shape(B) + tm_polygons() +
 ## Detrend, computer variogram and plot
 
 ```{r Variogram, echo = FALSE}
-# Make an arbitrary grid to recieve the kriged surface
 
-grd         <- as.data.frame(spsample(WL, "regular", n = 50000))
-names(grd)  <- c("X","Y")
-coordinates(grd) <- c("X","Y")
-gridded(grd)  <- TRUE
-fullgrid(grd) <- TRUE
-proj4string(grd) <- crs_utm10  
 
 
 # Define first order polynomial equation (This is for detrending in the variogram step)
 # !!!!!! I will likely need to determine what an appropriate detrending approach to use is!!!!
 
-f.1 <- as.formula(head ~ 1)
+f.1 <- as.formula(head ~ elevation_m)
 
-# Add X and Y to WL
-WL$X <- coordinates(WL)[,1]
-WL$Y <- coordinates(WL)[,2]
 
 # Compute the sample variograml note that the f.1 trend model is one of the parameters
 # passed to variogram(). This tells the funciton to create the variogram on the de-trended data.
 
 # I don't know how the cutoff and width values are chosen but they do effect the output
 
-var.smpl <- variogram(f.1, locations = WL, cloud = T, width = 10)
+var.smpl <- variogram(object = head ~ elevation_m, data = WL,locations = WL, cutoff = 2000, width = 100)
 
 plot(var.smpl)
 
 # Compute the variogram model by passing the nugget, sill and range values
 # to fit.variogram() via the vgm() function.
 
-dat.fit <-  fit.variogram(var.smpl, fit.ranges = FALSE, fit.sills = FALSE,
-                          vgm(psill = 14, model = "Sph", range = 590000, nugget = 0))
+dat.fit <-  fit.variogram(var.smpl, vgm(model = "Sph"))
 
 plot(var.smpl, dat.fit)
-plot
 
-```
+
+azZ```
 
 
 ## Krige it and Plot!
 
 ```{r Krige, echo = FALSE}
 
+# # Make an arbitrary grid to recieve the kriged surface
+
+# dem <- raster("Kriging-Watertable/AF_DEM.tif")
+#   proj4string(dem) <- crs_utm10
+# plot(dem)
+# 
+# dem <- raster::aggregate(dem, fact = 10)
+# plot(dem)
+# 
+# dem.mask <- raster::mask(dem, B)
+# plot(dem.mask)
+# 
+# dem.crop <- crop(dem.mask,B)
+# plot(dem.crop)
+# 
+# raster::writeRaster(dem.crop, "Kriging-Watertable/AF_DEM-lowres.tif")
+
+dem <- raster("Kriging-Watertable/AF_DEM-lowres.tif")
+  proj4string(dem) <- crs_utm10
+
+demdf <- as.data.frame(dem,xy=T) %>% 
+  rename(elevation_m = "AF_DEM")
+
+demdf$elevation_m[demdf$elevation_m == 0] <- NA
+
+coordinates(demdf) = ~x+y
+proj4string(demdf) = crs_utm10
+gridded(demdf) = T
+demdf <- as(demdf,"SpatialPixelsDataFrame")
+plot(demdf)  
 # Perform the krige interpolation (note the use of the variogram model
 # created in the earlier step)
-dat.krg <- krige(formula = f.1, locations = WL, newdata = grd, model = dat.fit)
+dat.krg <- krige(formula = f.1, locations = WL, newdata = demdf, model = dat.fit)
 
-# Convert kriged surface to a raster object for clipping
+  # Convert kriged surface to a raster object for clipping
 r <- raster(dat.krg)
 r.m <- mask(r, B)
 

@@ -468,16 +468,17 @@ ECRKS <- wldat %>%
 
 # BIND ALL CORRECTED DATA TOGETHER ----------------------------------------
 
+# choose which sites will be exported to geopackages
 
-dat.cor <- bind_rows(A1G, A2G, A3G, A4G, B1G, B2G, B3G, B4G, B5G, C1G, C2G, C3G, C4G, ECRKG, WCRKG)
+dat.cor <- bind_rows(A1G, A2G, A4G, B1G, B2G, B4G, B5G, C1G, C2G, C3G, C4G, ECRKG, WCRKG)
 
 
-p <- dat.cor %>%
-  ggplot()+
-  geom_line(aes(x = datetime, y = wl, colour = site))+
-  geom_point(aes(x = datetime, y = gtw_cm_man, colour = site))
-
-ggplotly(p)
+# p <- dat.cor %>%
+#   ggplot()+
+#   geom_line(aes(x = datetime, y = wl, colour = site))+
+#   geom_point(aes(x = datetime, y = gtw_cm_man, colour = site))
+# 
+# ggplotly(p)
 
 
 daily.data <- dat.cor %>% 
@@ -491,16 +492,16 @@ daily.data <- dat.cor %>%
 
 
 
-p <- daily.data %>%
-  filter(site!="ECRK" & site != "WCRK" & site !="B3" & site != "A3") %>% 
-  ggplot()+
-  geom_line(aes(x = date, y = wl, colour = site))+
-  geom_point(aes(x = date, y = gtw_cm_man, colour = site))+
-  geom_abline(slope = 0, intercept = 0, linetype = "dashed")+
-  facet_grid(rows = "trans", scales = "free")+
-  labs(x = "Date", y = "Water Level (cm)")+
-  scale_colour_discrete(name = "Site")
-ggplotly(p)
+# p <- daily.data %>%
+#   filter(site!="ECRK" & site != "WCRK" & site !="B3" & site != "A3") %>% 
+#   ggplot()+
+#   geom_line(aes(x = date, y = wl, colour = site))+
+#   geom_point(aes(x = date, y = gtw_cm_man, colour = site))+
+#   geom_abline(slope = 0, intercept = 0, linetype = "dashed")+
+#   facet_grid(rows = "trans", scales = "free")+
+#   labs(x = "Date", y = "Water Level (cm)")+
+#   scale_colour_discrete(name = "Site")
+# ggplotly(p)
 
 
 # Filter down to first of month dates
@@ -511,7 +512,7 @@ daterange <- seq(ymd("2019-05-01"), ymd("2020-11-01"), by = "month")
 monthly.data <- daily.data%>% 
   filter(date %in% daterange) %>% 
   ungroup() %>% 
-  select(date,head,geom)
+  select(date,head,geom,elevation_m)
 
 # p <- monthly.data %>% 
 #   ggplot()+
@@ -612,7 +613,7 @@ monthly_gpkg_writer <- function(daterange){
 
 # Applying the geopackage outputter here:
 
-# daterange %>%
-#   map(monthly_gpkg_writer)
+daterange %>%
+  map(monthly_gpkg_writer)
 
 

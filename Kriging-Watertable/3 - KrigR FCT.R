@@ -12,30 +12,35 @@ library(mapview)
 
 
 dataday = seq(ymd("2019-05-01"), ymd("2020-11-01"), by = "month")
-# Test day dataday = as.Date("2020-05-01")
+# Test day dataday = as.Date("2019-07-01")
 
 crs_utm10 <- CRS(SRS_string = "EPSG:32610")
 
 KrigR <- function(dataday) {
   
-  WL <- as_Spatial(st_read(paste0("Level-Logger-Data-Compiling/daily_wl_gpkgs/",ymd(dataday), ".gpkg")))
+  WL <- as_Spatial(st_read(paste0("Level-Logger-Data-Compiling/daily_wl_gpkgs/", dataday, ".gpkg")))
   proj4string(WL) <- crs_utm10
-  B <- as_Spatial(st_read("Kriging-Watertable/AOI.gpkg"))
+  B <-  as_Spatial(st_read("Kriging-Watertable/AOI.gpkg"))
   proj4string(B) <- crs_utm10
   WL@bbox <- B@bbox
-  grd         <- as.data.frame(spsample(WL, "regular", n = 50000))
-  names(grd)  <- c("X","Y")
-  coordinates(grd) <- c("X","Y")
-  gridded(grd)  <- TRUE
-  fullgrid(grd) <- TRUE
-  proj4string(grd) <- crs_utm10   
-  f.1 <- as.formula(head ~ X + Y)
-  WL$X <- coordinates(WL)[,1]
-  WL$Y <- coordinates(WL)[,2]
-  var.smpl <- variogram(f.1, WL, cloud = FALSE, cutoff=1000000, width=89900)
-  dat.fit <-  fit.variogram(var.smpl, fit.ranges = FALSE, fit.sills = FALSE,
-                            vgm(psill = 14, model = "Sph", range = 590000, nugget = 0))
-  dat.krg <- krige(formula = f.1, locations = WL, newdata = grd, model = dat.fit)
+  
+  
+  f.1 <- as.formula(head ~ elevation_m)
+  
+  var.smpl <- variogram(object = head ~ elevation_m, data = WL,locations = WL, cutoff = 2000, width = 100)
+  dat.fit <-  fit.variogram(var.smpl, vgm(model = "Sph"))
+  
+  dem <- raster("Kriging-Watertable/AF_DEM-lowres.tif")
+  proj4string(dem) <- crs_utm10
+  demdf <- as.data.frame(dem,xy=T) %>% 
+    rename(elevation_m = "AF_DEM.lowres")
+  demdf$elevation_m[demdf$elevation_m == 0] <- NA
+  coordinates(demdf) = ~x+y
+  proj4string(demdf) = crs_utm10
+  gridded(demdf) = T
+  demdf <- as(demdf,"SpatialPixelsDataFrame")
+  
+  dat.krg <- krige(formula = f.1, locations = WL, newdata = demdf, model = dat.fit)
   r <- raster(dat.krg)
   r.m <- mask(r, B)
   
@@ -47,7 +52,7 @@ KrigR <- function(dataday) {
 
 
 dataday %>% 
-  map(KrigR)
+  map(.f = KrigR)
 
 mapview(B)
 
