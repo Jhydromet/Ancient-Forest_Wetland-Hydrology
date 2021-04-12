@@ -10,8 +10,8 @@ library(sp)    # Used for the spsample function
 
 
 
-dataday = seq(ymd("2019-05-01"), ymd("2020-11-01"), by = "month")
-# Test day dataday = as.Date("2019-07-01")
+dataday = seq(ymd("2019-05-01"), ymd("2020-11-01"), by = "week")
+# Test day dataday = as.Date("2019-05-01")
 
 crs_utm10 <- CRS(SRS_string = "EPSG:32610")
 
@@ -53,13 +53,13 @@ dataday %>%
 
 # basemap <- raster::raster("E:/Jeremy's MSc Research/Hydrometric and GIS/GIS Data/Raster Data/Ancient Forest Wetland LIDAR/AF_DEM.tif")
 # 
-# plt <-   tm_shape(r.m) +
-#   tm_raster(n=10, palette="Blues", auto.palette.mapping=FALSE,
-#             title="Water Table Elevation \n(m.a.s.l)", midpoint = NA) +
-#   tm_shape(WL) + tm_markers(size=0.2) +
-#   tm_legend(legend.outside=TRUE)
-# 
-# plt
+plt <-   tm_shape(r.m) +
+  tm_raster(n=10, palette="Blues", auto.palette.mapping=FALSE,
+            title="Water Table Elevation \n(m.a.s.l)", midpoint = NA) +
+  tm_shape(WL) + tm_markers(size=0.2) +
+  tm_legend(legend.outside=TRUE)
+
+plt
 
 
 # Variance plotting, could be added later to loop? maybe doesnt matter -------------------------

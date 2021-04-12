@@ -21,8 +21,7 @@ library(tidymodels)
 
 # 01 Plotting Raw and Rolling Mean data
 
-Some testing was done on length of rolling mean. I applied 6 hrs (24 15min timestamps), 12 hrs (48), and 24 (96). Since early tests of cross correlation indicated that rain preceded water level change by >1 day typically, I have carried out the cross correlation here with 12 hr rolling mean. These top interactive plots just show the difference between the raw and rolling mean data for water level. The final plot is the 12 hr rolling mean (in blue) and raw (faint grey..) rainfall data from Ancient Forest Station.
-
+The following two plots are 6 hour (24x15 min timestamps) rolling means of water level and rainfall data. These datasets are used for the following analyses.
 
 ```{r,echo=FALSE, message=FALSE,warning=FALSE}
 rain <- read_csv("Cross-Correlation-Precip-Watertable/AF_Station.csv") %>%
@@ -73,13 +72,13 @@ data <- files %>%
   map(WlBinder) %>% 
   reduce(rbind)
 
-# p24 <- data %>% 
-#   ggplot()+
-#   geom_line(aes(timestamp, raw_val, colour = site.no), size = 1)+
-#   geom_line(aes(timestamp, mn.val.24, group = site.no), linetype="dashed")+
-#   labs(title = "6Hr rolling avg")
-#   
-# ggplotly(p24)
+p24 <- data %>%
+  ggplot()+
+  geom_line(aes(timestamp, raw_val, colour = site.no), size = 1)+
+  geom_line(aes(timestamp, mn.val.24, group = site.no), linetype="dashed")+
+  labs(title = "6Hr rolling avg Water Level Data")
+
+ggplotly(p24)
 
 # p48 <- data %>% 
 #   ggplot()+
@@ -89,13 +88,14 @@ data <- files %>%
 #   
 # p48
 # 
-# rain.p48 <- data %>% 
-#   ggplot()+
-#   geom_col(aes(timestamp,rain_mm_tot))+
-#   geom_col(aes(timestamp,mn.rain.48),colour = "#6699CC75")+
-#   ylim(c(0,10))+
-#   labs(title = "12 hr rolling mean rainfall (blue)")
-# rain.p48
+rain.p24 <- data %>%
+  filter(timestamp <= ymd_hms("2019-10-31 00:00:00")) %>% 
+  ggplot()+
+  geom_col(aes(timestamp,rain_mm_tot))+
+  geom_col(aes(timestamp,mn.rain.24),colour = "#6699CC75")+
+  ylim(c(0,10))+
+  labs(title = "6 hr rolling mean rainfall (blue)")
+rain.p24
 
 
 ```
@@ -111,10 +111,8 @@ I trimmed the data to the period of 2019-06-01 to 2019-11-01 to avoid snowmelt i
 I'm still unsure of how best to handle detrending in this case, so I've run cross correlation on both the original data (6 hr rolling mean) and the first difference dataset.
 
 
-### Non-detrended data
-
-```{r 6 hr rolling mean, 01 June to 01 Nov,echo=FALSE, message=FALSE, warning=FALSE}
-
+### Stationarity testing
+```{r,echo=FALSE, message=FALSE,warning=FALSE}
 roll_rain <- rain %>% 
   dplyr::mutate(mn.rain = roll_mean(rain_mm_tot, width = 24)) %>% 
   drop_na()
@@ -155,6 +153,12 @@ rain.stat <- roll_rain %>%
             adf.diff = tidy(adf.test(diff(mn.rain,1)))$p.value,
             kpss = tidy(kpss.test(mn.rain))$p.value,
             kpss.diff = tidy(kpss.test(diff(mn.rain,1)))$p.value)
+```
+
+
+### Non-detrended data Cross Correlation
+
+```{r 6 hr rolling mean, 01 June to 01 Nov,echo=FALSE, message=FALSE, warning=FALSE}
 
 #files <- "A2-G.csv"
 
@@ -212,7 +216,7 @@ p <- data %>%
   geom_hline(aes(yintercept = ciline), linetype = 2, color = 'darkblue') +
   geom_hline(aes(yintercept = -ciline), linetype = 2, color = 'darkblue')+
   # geom_segment(mapping = aes(xend = lagg, yend = 0))+
-  labs(x = "Lag (15 Min)", y = "Cross-Correlation", title = paste(" 12 hr rollmean Rain to Water Level Correlation 01 Jun - 01 Nov 2019"))
+  labs(x = "Lag (15 Min)", y = "Cross-Correlation", title = paste(" 6 hr rollmean Rain to Water Level Correlation 01 Jun - 01 Nov 2019"))
 
 p
 ```
@@ -240,7 +244,7 @@ kable(lag.summary) %>%
   kable_material()
 ```
 
-### First difference detrended data
+### First difference detrended data Cross Correlation
 
 ```{r , echo=FALSE, message=FALSE, warning=FALSE}
 ########################################################
@@ -295,7 +299,7 @@ p <- data %>%
   geom_hline(aes(yintercept = ciline), linetype = 2, color = 'darkblue') +
   geom_hline(aes(yintercept = -ciline), linetype = 2, color = 'darkblue')+
   # geom_segment(mapping = aes(xend = lagg, yend = 0))+
-  labs(x = "Lag (15 Min)", y = "Cross-Correlation", title = paste(" 12 hr rollmean Rain to Water Level Correlation 01 Jun - 01 Nov 2019"))
+  labs(x = "Lag (15 Min)", y = "Cross-Correlation", title = paste("detrended 6 hr rollmean Correlation 01 Jun - 01 Nov 2019"))
   
 ggplotly(p)
 
@@ -332,6 +336,61 @@ lag.summary <- lag.dat %>%
 kable(lag.summary) %>% 
   kable_material()
 ```
+
+
+### Smoothing detrended results
+
+I have applied a rolling mean of 1 hour to the previous cross correlation results to smooth the data and pull peak values. To filter peak values, I focused on lags between 0 and 50, where correlation coefficient exceeded 95th percentile.
+
+```{r , echo=FALSE, message=FALSE, warning=FALSE}
+########################################################
+
+
+data.avg <- data %>% 
+  group_by(site) %>% 
+  mutate(mn.crcor = roll_mean(crcor, 4))
+
+
+conf.level <- 0.95
+ciline <- qnorm((1 + conf.level)/2)/sqrt(14781) # 14781 is the number of data pts in each
+
+p <- data.avg %>% 
+  ggplot()+
+  geom_line(aes(lagg,mn.crcor,colour = site), size = .9)+ 
+  geom_hline(aes(yintercept = 0)) +
+  geom_hline(aes(yintercept = ciline), linetype = 2, color = 'darkblue') +
+  geom_hline(aes(yintercept = -ciline), linetype = 2, color = 'darkblue')+
+  # geom_segment(mapping = aes(xend = lagg, yend = 0))+
+  labs(x = "Lag (15 Min)", y = "Cross-Correlation", title = paste("Smoothed 6 hr rollmean  Correlation 01 Jun - 01 Nov 2019"))
+  
+ggplotly(p)
+
+```
+
+```{r,echo=FALSE, message=FALSE, warning=FALSE}
+lag.dat <- data.avg %>%
+  dplyr::group_by(site) %>% 
+  dplyr::filter(lagg <= 0) %>% 
+  dplyr::filter(mn.crcor == max(mn.crcor, na.rm = T)) %>%
+  dplyr::filter(mn.crcor >= ciline) %>% 
+  dplyr::filter(site != "B3-G" & site != "A3-G") %>% 
+  dplyr::mutate(lag.hrs = lagg/4) %>% 
+  dplyr::select(site,lagg,lag.hrs,crcor)
+
+kable(lag.dat) %>% 
+  kable_material()
+```
+
+```{r,echo=FALSE, message=FALSE, warning=FALSE}
+lag.summary <- lag.dat %>%
+  dplyr::ungroup() %>% 
+  dplyr::summarise(mn.lag.hrs = mean(lag.hrs),
+                   sd.lag.hrs = sd(lag.hrs))
+
+kable(lag.summary) %>% 
+  kable_material()
+```
+
 
 ## Thoughts..
 

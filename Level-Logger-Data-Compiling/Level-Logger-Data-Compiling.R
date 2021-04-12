@@ -493,10 +493,10 @@ daily.data <- dat.cor %>%
 
 
 # p <- daily.data %>%
-#   filter(site!="ECRK" & site != "WCRK" & site !="B3" & site != "A3") %>% 
+#   filter(site!="ECRK" & site != "WCRK" & site !="B3" & site != "A3") %>%
 #   ggplot()+
 #   geom_line(aes(x = date, y = wl, colour = site))+
-#   geom_point(aes(x = date, y = gtw_cm_man, colour = site))+
+#   # geom_point(aes(x = date, y = gtw_cm_man, colour = site))+
 #   geom_abline(slope = 0, intercept = 0, linetype = "dashed")+
 #   facet_grid(rows = "trans", scales = "free")+
 #   labs(x = "Date", y = "Water Level (cm)")+

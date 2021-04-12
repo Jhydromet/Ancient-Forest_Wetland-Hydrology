@@ -11,12 +11,12 @@ library(sp)    # Used for the spsample function
 library(mapview)
 library(rasterVis)
 library(magick)
+library(gridExtra)
 
-# date <- ymd("2019-05-01")
+# date <- ymd("2020-05-01")
 
 
-date <- seq.Date(ymd("2019-05-01"),ymd("2020-11-01"), by = "month")
-
+date <- sub(x = dir(path = "Kriging-Watertable/kriged_tiffs/", pattern = "*.tif"), pattern = "*.tif", replacement = "")
 
 krigeplottR <- function(date) {
   site <- st_read(paste0("Level-Logger-Data-Compiling/daily_wl_gpkgs/",date,".gpkg"))
@@ -29,13 +29,15 @@ krigeplottR <- function(date) {
   p <- ggplot()+
     geom_tile(data = raster.df,aes(x=x,y=y,fill=wl))+
     geom_sf(data = site)+
-    scale_fill_viridis_c(limits = c(625,650))+
+    scale_fill_viridis_b(limits = c(625,650), name = "Water Elevation (m)")+
     labs(title = date)+
-    theme(axis.text.x = element_text(angle =45, hjust = 1),
+    theme(
+          # axis.text = element_blank(),
+          axis.text.x = element_text(angle =45, hjust = 1),
           axis.text.y = element_text(angle =45),
           axis.title = element_blank(),
-          legend.title = element_blank(),
-          legend.key.height = unit(40,"pt"))
+          # axis.ticks = element_blank(),
+          legend.key.height = unit(2, "cm"))
   
   write_rds(p, paste0("Kriging-Watertable/krige_plots/rds/",date))
   ggsave(p, filename = paste0("Kriging-Watertable/krige_plots/png/",date, ".png"), device = "png")
@@ -47,10 +49,14 @@ date %>%
 
 # make a gif
 
-list.files(path = "Kriging-Watertable/krige_plots/png/", pattern = "*.png", full.names = T) %>% 
-  map(image_read) %>% # reads each path file
-  image_join() %>% # joins image
-  image_animate(fps=2) %>% # animates, can opt for number of loops
-  image_write("Kriging-Watertable/watertable.gif")
+# list.files(path = "Kriging-Watertable/krige_plots/png/", pattern = "*.png", full.names = T) %>% 
+#   map(image_read) %>% # reads each path file
+#   image_join() %>% # joins image
+#   image_animate(fps=10) %>% # animates, can opt for number of loops
+#   image_write("Kriging-Watertable/watertable.gif")
+
+plots <- list.files(path = "Kriging-Watertable/krige_plots/rds/", pattern = "*", full.names = T) %>% 
+  map(read_rds)
 
 
+grid.arrange(grobs = plots,nrow = 2)

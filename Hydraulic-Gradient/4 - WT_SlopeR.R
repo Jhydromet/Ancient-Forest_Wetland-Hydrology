@@ -10,7 +10,7 @@ library(kableExtra)
 
 
 pts <- read_sf("Hydraulic-Gradient/gradient_pts.gpkg")
-dataday = seq(from = as.Date("2019-05-01"), to = as.Date("2020-11-01"), by = "month")
+dataday = seq(from = as.Date("2019-05-01"), to = as.Date("2020-11-01"), by = "week")
 # Test day dataday = "2019-05-01"
 
 gradients <-function(dataday){
@@ -27,10 +27,16 @@ gradients <-function(dataday){
 
 slopes <- lapply(dataday, gradients) %>% bind_rows()
 
+slopes.prep <- slopes %>% 
+  filter(date >= "2020-05-01" | date <= "2019-11-01") %>% 
+  mutate(year = year(date),
+         yday = yday(date),
+         month = month(date))
 
-slopes %>% 
+slopes.prep %>% 
   ggplot()+
-  geom_line(aes(x = date, y = slope))+
+  geom_line(aes(x = yday, y = slope, colour = as.factor(year)))+
+  scale_colour_discrete(name = "Year")+
   labs(title = "Water Table Gradient", x = "Date", y = "dh/dx")
 
 slopes %>% 
