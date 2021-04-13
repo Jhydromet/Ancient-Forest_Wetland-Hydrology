@@ -63,16 +63,43 @@ grid.arrange(p1,p2)
 domesw <- read_csv("Climate-Comparisons/other climate data/DataSetExport-SW.Telemetry@1A19P-20210412182208.csv",skip = 2) %>% 
   rename(datetime = `Timestamp (UTC)`, swe.mm = `Value (Millimetres)`) %>% 
   dplyr::select(datetime,swe.mm) %>% 
-  filter(swe.mm>=0) %>% 
-  mutate(year = year(datetime)) %>% 
-  group_by(year) %>% 
-  mutate(peak = max(swe.mm),
-         peak.date = if_else(swe.mm == peak, "peak","no")) %>% 
-  ungroup() %>% 
-  mutate(mn.peak = mean(peak))
+    mutate(year = year(datetime),
+         yday = yday(datetime),
+         date = date(datetime),
+         month = month(datetime)) %>% 
+  filter(swe.mm>=0 & datetime >= ymd_hms("2006-10-20 07:00:00")) %>% 
+  group_by(yday) %>% 
+  mutate(mean.swe.plt = mean(swe.mm)) %>% 
+  ungroup()
 
-p <- domesw %>% 
+
+
+# p <- domesw %>%
+#   ggplot()+
+#   geom_line(aes(datetime,swe.mm))+
+#   geom_line(aes(datetime,mean.swe.plt), colour = "red")
+# ggplotly(p)
+
+
+domestudy <- domesw %>% 
+  filter(date >= ymd("2018-10-01") & date <= ymd("2020-09-30")) %>% 
+  mutate(wateryear = case_when(
+    date(datetime) >= ymd("2018-10-01") & date(datetime) <= ymd("2019-09-30") ~ "2018/2019",
+    date(datetime) >= ymd("2019-10-01")  ~ "2019/2020")) %>% 
+  mutate(wyday = case_when(
+    yday >= 0 & yday < 274 ~ yday + 91,
+    yday >=274 ~ yday-274))
+
+
+
+
+domestudy %>% 
   ggplot()+
-  geom_line(aes(datetime,swe.mm))+
-  geom_line(aes(datetime,mn.peak))
-ggplotly(p)
+  geom_line(aes(wyday, swe.mm, colour = wateryear), size =1)+
+  geom_line(aes(wyday, mean.swe.plt), colour = "darkgrey", linetype = "dashed", size = 1)+
+  scale_x_continuous(breaks = c(0,61,123,182,243,304),
+                     labels = c("Oct","Dec","Feb","Apr","Jun","Aug"))+
+  scale_colour_discrete(name = "Water Year")+
+  labs(x = "Month", y = "Snow Water Equivalent (mm)")
+
+
