@@ -359,8 +359,6 @@ plt <- dat.snowdup %>%
 plt
 
 
-
-
 ```
 
 ```{r EMMA Table}
@@ -475,6 +473,8 @@ all.dat$par.labs <- factor(all.dat$Parameter,
                                    expression(paste("Temp  ","(\u00B0C)")),
                                    expression("Rain~(mm)"),
                                    expression("Snow~(cm)")))
+
+# write_csv(all.dat, "Iso-Climate-Plot-Data.csv")
 
 all.dat %>% 
   ggplot(aes(x = date, y = value))+

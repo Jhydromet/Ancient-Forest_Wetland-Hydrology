@@ -2,6 +2,7 @@ library(tidyverse)
 library(lubridate)
 library(gridExtra)
 library(plotly)
+library(roll)
 
 
 # Prince George Airport Plot ----------------------------------------------
@@ -92,7 +93,6 @@ domestudy <- domesw %>%
 
 
 
-
 domestudy %>% 
   ggplot()+
   geom_line(aes(wyday, swe.mm, colour = wateryear), size =1)+
@@ -100,6 +100,67 @@ domestudy %>%
   scale_x_continuous(breaks = c(0,61,123,182,243,304),
                      labels = c("Oct","Dec","Feb","Apr","Jun","Aug"))+
   scale_colour_discrete(name = "Water Year")+
-  labs(x = "Month", y = "Snow Water Equivalent (mm)")
+  labs(x = "Month", y = "Snow Water Equivalent (mm)")+
+  theme(legend.position = c(.9,.85))
+
+# dome air temp
+
+dometa <- read_csv("Climate-Comparisons/other climate data/DataSetExport-TA.Working@1A19P-20210414221824.csv", skip = 2) %>% 
+  rename(datetime = `Timestamp (UTC)`, temp = `Value (Celsius)`) %>%
+  select(datetime, temp) %>% 
+  mutate(date = date(datetime)) %>% 
+  group_by(date) %>% 
+  mutate(value = mean(temp),
+         name = "temp") %>% 
+  ungroup()
 
 
+# Precip Comparison
+
+domepc <- read_csv("Climate-Comparisons/other climate data/DataSetExport-PC.Working@1A19P-20210414154037.csv", skip = 2) %>% 
+  rename(datetime = `Timestamp (UTC)`, rain = `Value (Millimetres)`) %>%
+  select(datetime,rain) %>% 
+  mutate(date = date(datetime)) %>% 
+  group_by(date) %>%
+  mutate(rain = mean(rain)) %>% 
+  ungroup() %>% 
+  mutate(value = rain - lag(rain, 1),
+         name = "rain") %>% 
+  filter(date >= "2019-05-10") %>% 
+  filter(date <="2019-09-29" | date >= "2020-05-12") %>% 
+  filter(date <="2020-10-15")
+  
+  
+
+
+domepc$value[domepc$value < 0] = 0
+
+p <- domepc %>% 
+  ggplot()+
+  geom_line(aes(date, value))
+
+ggplotly(p)
+
+domeswe <- domesw %>% 
+  select(-mean.swe.plt) %>% 
+  rename(value = "swe.mm") %>% 
+  mutate(name = "swe")
+
+domedat <- bind_rows(domeswe,domepc,dometa) %>% 
+filter(date >= "2019-01-01")
+
+
+p <- domedat %>% 
+  ggplot(aes(x = date, y = value))+
+  geom_col(data = filter(.data = domedat, name == "rain"))+
+  geom_line(data = filter(.data = domedat, name == "swe"))+
+  geom_line(data = filter(.data = domedat, name == "temp"))+
+  facet_grid(rows = vars(name), scales = "free")
+ggplotly(p)
+
+domefinal <- domedat %>% 
+  rename(Parameter = "name") %>% 
+  select(date,value,Parameter) %>% 
+  mutate(Site = "Dome")
+
+write_csv(domefinal,"Climate-Comparisons/DomeMtn.csv" )
