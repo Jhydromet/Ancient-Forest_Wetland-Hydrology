@@ -93,7 +93,7 @@ domestudy <- domesw %>%
 
 
 
-domestudy %>% 
+p <- domestudy %>% 
   ggplot()+
   geom_line(aes(wyday, swe.mm, colour = wateryear), size =1)+
   geom_line(aes(wyday, mean.swe.plt), colour = "darkgrey", linetype = "dashed", size = 1)+
@@ -102,6 +102,8 @@ domestudy %>%
   scale_colour_discrete(name = "Water Year")+
   labs(x = "Month", y = "Snow Water Equivalent (mm)")+
   theme(legend.position = c(.9,.85))
+
+ggplotly(p)
 
 # dome air temp
 
