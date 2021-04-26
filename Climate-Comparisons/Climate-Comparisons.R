@@ -110,12 +110,27 @@ ggplotly(p)
 dometa <- read_csv("Climate-Comparisons/other climate data/DataSetExport-TA.Working@1A19P-20210414221824.csv", skip = 2) %>% 
   rename(datetime = `Timestamp (UTC)`, temp = `Value (Celsius)`) %>%
   select(datetime, temp) %>% 
-  mutate(date = date(datetime)) %>% 
-  group_by(date) %>% 
-  mutate(value = mean(temp),
-         name = "temp") %>% 
-  ungroup()
+  mutate(date = date(datetime),
+         year = as.factor(year(date)),
+         week = week(date),
+         month = month(date)) %>% 
+  group_by(month, year) %>% 
+  mutate(value = mean(temp, na.rm =T),
+         name = "temp",
+         yday = yday(date)) %>% 
+  ungroup() %>% 
+  group_by(month) %>% 
+  mutate(mn.val = mean(value,na.rm = T))
+  
 
+dometa %>% 
+  filter(year == "2019" | year == "2020") %>% 
+  ggplot()+
+    geom_line(aes(x = month, y = value, colour = year))+
+    geom_line(aes(x = month, y =mn.val), linetype = "dashed", size = 1)+
+  geom_abline(slope = 0,intercept = 0, linetype = "dashed")+
+  labs(x = "Month", y = "Air Temperature (°C)")+
+  theme(legend.position = c(.9,.9))
 
 # Precip Comparison
 
