@@ -28,7 +28,13 @@ library(cowplot)
 
 dat <- read_csv("Isotope-EMMA-Climate-Analysis/Isotope2020Tidy.csv") %>%
   mutate(date = dmy(Date),
-         Month = month(date, label = T, abbr = T))
+         Month = month(date, label = T, abbr = T),
+         type = case_when(type == "Snow" ~ "Snowmelt",
+                          TRUE ~ type),
+         type = case_when(Site == "B2S" ~ "Overland",
+                          TRUE ~ type),
+         type = case_when(Site == "W.Crk" ~ "Creek",
+                          TRUE ~ type))
   
 dat
 
@@ -37,6 +43,8 @@ dat
 raindat <- dat %>% 
   filter(type == "Rain")
 
+lm(raindat$d2H ~ raindat$d18O)
+
 gwdat <- dat %>% 
   filter(type == "Groundwater")
 
@@ -44,11 +52,16 @@ sfcdat <- dat %>%
   filter(type == "Pond")
 
 snowdat <- dat %>% 
-  filter(type == "Snow")
+  filter(type == "Snowmelt")
 
 pbase <- dat %>% 
+  filter(type != "Rain") %>% 
   ggplot()+
-  geom_point(aes(x = d18O, y = d2H, colour = Month, shape = type))
+  geom_point(aes(x = d18O, y = d2H,shape = Site, colour = Month))+
+  
+  scale_color_brewer(palette = "Dark2")
+
+ggplotly(pbase)
   
 
 gwplt <- pbase+
@@ -56,11 +69,10 @@ gwplt <- pbase+
 #   geom_smooth(data = sfcdat, aes(x = d18O, y = d2H), method="lm", se=FALSE)+
   scale_x_continuous(limits = c(-20, -16.5)) +
   scale_y_continuous(limits = c(-150, -125)) +
-  scale_colour_brewer(name = "Month",palette = 7)+
-  theme_classic()+
   theme(legend.position = "none", 
         axis.title.x = element_blank(),
-        axis.title.y = element_blank())
+        axis.title.y = element_blank(),
+        )
 
 # snowplt <- pbase+
 #   # geom_smooth(data = snowdat, aes(x = d18O, y = d2H), method="lm", se=FALSE, colour = "red")+
@@ -76,6 +88,7 @@ totplt <- pbase+
                     x = -15, y = -65,
                     xmin = -20.25, ymin = -105)+
   geom_abline(slope = 8, intercept = 10)+ #GMWL
+  geom_abline(slope = 8.879, intercept = 13.416)+
   annotate("text",x = -15,y=-105,angle =35,
            label = "GMWL")+
   geom_smooth(data = raindat, aes(x = d18O, y = d2H),
@@ -85,12 +98,17 @@ totplt <- pbase+
            label = "LMWL")+
   scale_x_continuous(name = expression(paste(delta^18,"O", "(\u2030)")))+
   scale_y_continuous(name = expression(paste(delta^2,"H", "(\u2030)")))+
-  scale_colour_brewer(name = "Month (2020)",palette = 7)+
-  scale_shape_discrete(name = "Sample Type")+
-  theme_bw()
+  labs(shape = "Sample Type")+
+  theme_bw()+
+  theme(legend.position = c(.8,.27),
+        legend.box.just = "right",
+        legend.box = "horizontal")
 
 
 totplt
+ggplotly(pbase)
+
+ggsave("Plots/Iso_2020_only.png", totplt, width = 6.5, height =4.5, units = "in")
 
 ```
 
