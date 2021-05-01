@@ -59,125 +59,217 @@ p2 <- pgclimate %>%
 grid.arrange(p1,p2)
 
 
-# snow pillows ------------------------------------------------------------
+
+###########################################################################
+# DOME MOUNTAIN DATA PLOTTING ---------------------------------------------
+
+# SWE DATA WRANGLING----------------------------------------------------------------
+
+
 
 domesw <- read_csv("Climate-Comparisons/other climate data/DataSetExport-SW.Telemetry@1A19P-20210412182208.csv",skip = 2) %>% 
   rename(datetime = `Timestamp (UTC)`, swe.mm = `Value (Millimetres)`) %>% 
   dplyr::select(datetime,swe.mm) %>% 
     mutate(year = year(datetime),
          yday = yday(datetime),
-         date = date(datetime),
-         month = month(datetime)) %>% 
+         date = date(datetime)) %>% 
   filter(swe.mm>=0 & datetime >= ymd_hms("2006-10-20 07:00:00")) %>% 
+  group_by(date) %>% 
+  mutate(daily.swe.mm = mean(swe.mm)) %>% 
+  ungroup() %>% 
   group_by(yday) %>% 
   mutate(mean.swe.plt = mean(swe.mm)) %>% 
+  filter(date >= ymd("2018-10-01")) %>% 
   ungroup()
-
-
-
-# p <- domesw %>%
-#   ggplot()+
-#   geom_line(aes(datetime,swe.mm))+
-#   geom_line(aes(datetime,mean.swe.plt), colour = "red")
-# ggplotly(p)
 
 
 domestudy <- domesw %>% 
   filter(date >= ymd("2018-10-01") & date <= ymd("2020-09-30")) %>% 
   mutate(wateryear = case_when(
-    date(datetime) >= ymd("2018-10-01") & date(datetime) <= ymd("2019-09-30") ~ "2018/2019",
-    date(datetime) >= ymd("2019-10-01")  ~ "2019/2020")) %>% 
+    date >= ymd("2018-10-01") & date <= ymd("2019-09-30") ~ "2018/2019",
+    date >= ymd("2019-10-01")  ~ "2019/2020")) %>% 
   mutate(wyday = case_when(
     yday >= 0 & yday < 274 ~ yday + 91,
     yday >=274 ~ yday-274))
 
+domeswavg <- domestudy %>% 
+  select(wyday, wateryear, mean.swe.plt) %>% 
+  rename(swe = "mean.swe.plt") %>% 
+  mutate(wateryear = "16 Year Mean")
+
+domeswdat <- domestudy %>% 
+  select(wyday, wateryear, daily.swe.mm) %>% 
+  rename(swe = "daily.swe.mm")
+
+domeswe <- bind_rows(domeswavg,domeswdat)
+
+domeswe$wateryear = factor(domeswe$wateryear, levels = c("2018/2019","2019/2020","16 Year Mean"))
 
 
-p <- domestudy %>% 
+# SWE PLOT ----------------------------------------------------------------
+
+
+
+p1 <- domeswe %>%
+  filter(wyday <= 340) %>% 
   ggplot()+
-  geom_line(aes(wyday, swe.mm, colour = wateryear), size =1)+
-  geom_line(aes(wyday, mean.swe.plt), colour = "darkgrey", linetype = "dashed", size = 1)+
-  scale_x_continuous(breaks = c(0,61,123,182,243,304),
-                     labels = c("Oct","Dec","Feb","Apr","Jun","Aug"))+
-  scale_colour_discrete(name = "Water Year")+
+  geom_line(aes(wyday, swe, colour = wateryear), size =1)+
+  scale_x_continuous(breaks = c(0,31,61,92,123,151,182,213,242,273,304,334),
+                     labels = c("Oct","Nov","Dec","Jan","Feb","Mar","Apr","May","Jun","Jul", "Aug","Sep"),
+                    minor_breaks = NULL)+
+  scale_colour_manual(name = "Water Year",values=c("#F8766D", "#00BFC4", "#999999"))+
   labs(x = "Month", y = "Snow Water Equivalent (mm)")+
-  theme(legend.position = c(.9,.85))
+  theme(legend.position = "none")
 
-ggplotly(p)
 
-# dome air temp
+
+###############################################################################
+# MONTHLY AIR TEMPERATURE LINE PLOT ---------------------------------------
+
 
 dometa <- read_csv("Climate-Comparisons/other climate data/DataSetExport-TA.Working@1A19P-20210414221824.csv", skip = 2) %>% 
   rename(datetime = `Timestamp (UTC)`, temp = `Value (Celsius)`) %>%
   select(datetime, temp) %>% 
   mutate(date = date(datetime),
-         year = as.factor(year(date)),
-         week = week(date),
-         month = month(date)) %>% 
-  group_by(month, year) %>% 
-  mutate(value = mean(temp, na.rm =T),
-         name = "temp",
-         yday = yday(date)) %>% 
-  ungroup() %>% 
+         yday = yday(date),
+         month = month(date, label = T)) %>% 
   group_by(month) %>% 
-  mutate(mn.val = mean(value,na.rm = T))
+  mutate(mn.temp = mean(temp,na.rm = T)) %>% 
+  ungroup() %>% 
+  filter(date >= ymd("2018-10-01")) %>% 
+  mutate(wateryear = case_when(
+           date >= ymd("2018-10-01") & date <= ymd("2019-09-30") ~ "2018/2019",
+           date >= ymd("2019-10-01")  ~ "2019/2020",
+           TRUE ~ "NA")) %>% 
+  group_by(wateryear,month) %>% 
+  mutate(mn.monthly.temp = mean(temp,na.rm=T))
+
+dometa$month = factor(dometa$month, levels = c("Oct","Nov","Dec","Jan","Feb","Mar","Apr","May", "Jun","Jul", "Aug","Sep"))
   
+dometavg <- dometa %>% 
+  select(wateryear, mn.temp) %>% 
+  rename(temp = "mn.temp") %>% 
+  mutate(wateryear = "16 Year Mean")
 
-dometa %>% 
-  filter(year == "2019" | year == "2020") %>% 
+dometdat <- dometa %>% 
+  select(wateryear, mn.monthly.temp) %>% 
+  rename(temp = "mn.monthly.temp")
+
+dometemp <- bind_rows(dometavg,dometdat)
+
+dometemp$wateryear = factor(dometemp$wateryear, levels = c("2018/2019","2019/2020","16 Year Mean"))
+
+
+
+# TEMPERATURE PLOTTING ----------------------------------------------------
+
+p2 <- dometemp %>% 
   ggplot()+
-    geom_line(aes(x = month, y = value, colour = year))+
-    geom_line(aes(x = month, y =mn.val), linetype = "dashed", size = 1)+
+  geom_line(aes(x = month, y = temp, colour = wateryear, group = wateryear), size =1)+
   geom_abline(slope = 0,intercept = 0, linetype = "dashed")+
+  scale_colour_manual(name = "Water Year", values=c("#F8766D", "#00BFC4", "#999999"))+
   labs(x = "Month", y = "Air Temperature (°C)")+
-  theme(legend.position = c(.9,.9))
+  theme(legend.position = "none")
 
-# Precip Comparison
+###########################################################################
+# Precipitation Data Wrangle ----------------------------------------------
+
 
 domepc <- read_csv("Climate-Comparisons/other climate data/DataSetExport-PC.Working@1A19P-20210414154037.csv", skip = 2) %>% 
   rename(datetime = `Timestamp (UTC)`, rain = `Value (Millimetres)`) %>%
   select(datetime,rain) %>% 
-  mutate(date = date(datetime)) %>% 
-  group_by(date) %>%
-  mutate(rain = mean(rain)) %>% 
+  mutate(date = date(datetime),
+         yday = yday(date),
+         month = month(date, label = T),
+         year = year(date)) %>% 
+  filter(year >= "2014" | year <= "2011") %>% 
+  group_by(date) %>% 
+  summarise(mn.daily.val = mean(rain,na.rm = T),
+            date = date(datetime),
+            yday = yday(date),
+            month = month(date, label = T),
+            year = year(date)) %>% 
   ungroup() %>% 
-  mutate(value = rain - lag(rain, 1),
-         name = "rain") %>% 
-  filter(date >= "2019-05-10") %>% 
-  filter(date <="2019-09-29" | date >= "2020-05-12") %>% 
-  filter(date <="2020-10-15")
+  mutate(val = mn.daily.val - lag(mn.daily.val, 1),
+         val = case_when(
+           val < 0 ~ 0,
+           TRUE ~ val
+         )) %>% 
+  ungroup() %>% 
+  group_by(month,year) %>% 
+  mutate(sm.month = sum(val, na.rm = T)) %>% 
+  ungroup() %>% 
+  group_by(month) %>% 
+  mutate(mn.month = mean(sm.month, na.rm = T)) %>% 
+  select(date,month,sm.month,mn.month) %>% 
+  filter(date >= ymd("2018-10-01")) %>% 
+  mutate(wateryear = case_when(
+    date >= ymd("2018-10-01") & date <= ymd("2019-09-30") ~ "2018/2019",
+    date >= ymd("2019-10-01")  ~ "2019/2020",
+    TRUE ~ "NA"))
+
+domeavg <- domepc %>% 
+  select(month, mn.month) %>% 
+  rename(mm.precip = "mn.month") %>% 
+  mutate(wateryear = "16 Year Mean")
+
+domeyrs <- domepc %>% 
+  select(-date,-mn.month) %>% 
+  rename(mm.precip = "sm.month")
+
+domepc <- bind_rows(domeavg,domeyrs)
+
+
   
-  
+domepc$month = factor(domepc$month, levels = c("Oct","Nov","Dec","Jan","Feb","Mar","Apr","May", "Jun","Jul", "Aug","Sep"))
+
+domepc$wateryear = factor(domepc$wateryear, levels = c("2018/2019","2019/2020","16 Year Mean"))
 
 
-domepc$value[domepc$value < 0] = 0
 
-p <- domepc %>% 
+# Precipitation Column Plot -----------------------------------------------
+
+
+
+p3 <- domepc %>% 
   ggplot()+
-  geom_line(aes(date, value))
-
-ggplotly(p)
-
-domeswe <- domesw %>% 
-  select(-mean.swe.plt) %>% 
-  rename(value = "swe.mm") %>% 
-  mutate(name = "swe")
-
-domedat <- bind_rows(domeswe,domepc,dometa) %>% 
-filter(date >= "2019-01-01")
+  geom_col(aes(month, mm.precip, fill = wateryear), position = "dodge")+
+  scale_fill_manual(values=c("#F8766D", "#00BFC4", "#999999"), name = "Water Year")+
+  labs(x = "Month", y = "Precipitation (mm)")+
+  theme(legend.position = c(.95,.8))
 
 
-p <- domedat %>% 
-  ggplot(aes(x = date, y = value))+
-  geom_col(data = filter(.data = domedat, name == "rain"))+
-  geom_line(data = filter(.data = domedat, name == "swe"))+
-  geom_line(data = filter(.data = domedat, name == "temp"))+
-  facet_grid(rows = vars(name), scales = "free")
-ggplotly(p)
 
-domefinal <- domedat %>% 
-  rename(Parameter = "name") %>% 
-  select(date,value,Parameter) %>% 
-  mutate(Site = "Dome")
+# PLOT THE GRID -----------------------------------------------------------
 
-write_csv(domefinal,"Climate-Comparisons/DomeMtn.csv" )
+
+
+grid.arrange(p1,p3,p2)
+
+
+# 
+# 
+# 
+# domeswe <- domesw %>% 
+#   select(-mean.swe.plt) %>% 
+#   rename(value = "swe.mm") %>% 
+#   mutate(name = "swe")
+# 
+# domedat <- bind_rows(domeswe,domepc,dometa) %>% 
+# filter(date >= "2019-01-01")
+# 
+# 
+# p <- domedat %>% 
+#   ggplot(aes(x = date, y = value))+
+#   geom_col(data = filter(.data = domedat, name == "rain"))+
+#   geom_line(data = filter(.data = domedat, name == "swe"))+
+#   geom_line(data = filter(.data = domedat, name == "temp"))+
+#   facet_grid(rows = vars(name), scales = "free")
+# ggplotly(p)
+# 
+# domefinal <- domedat %>% 
+#   rename(Parameter = "name") %>% 
+#   select(date,value,Parameter) %>% 
+#   mutate(Site = "Dome")
+# 
+# write_csv(domefinal,"Climate-Comparisons/DomeMtn.csv" )
