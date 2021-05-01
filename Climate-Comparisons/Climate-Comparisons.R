@@ -3,6 +3,8 @@ library(lubridate)
 library(gridExtra)
 library(plotly)
 library(roll)
+library(magick)
+library(kableExtra)
 
 
 # Prince George Airport Plot ----------------------------------------------
@@ -92,6 +94,12 @@ domestudy <- domesw %>%
     yday >= 0 & yday < 274 ~ yday + 91,
     yday >=274 ~ yday-274))
 
+# p <- domesw %>% 
+#   ggplot()+
+#   geom_line(aes(x = date, y = daily.swe.mm))
+
+# ggplotly(p)
+
 domeswavg <- domestudy %>% 
   select(wyday, wateryear, mean.swe.plt) %>% 
   rename(swe = "mean.swe.plt") %>% 
@@ -121,6 +129,7 @@ p1 <- domeswe %>%
   labs(x = "Month", y = "Snow Water Equivalent (mm)")+
   theme(legend.position = "none")
 
+ggplotly(p1)
 
 
 ###############################################################################
@@ -144,12 +153,18 @@ dometa <- read_csv("Climate-Comparisons/other climate data/DataSetExport-TA.Work
   group_by(wateryear,month) %>% 
   mutate(mn.monthly.temp = mean(temp,na.rm=T))
 
+p <- dometa %>% 
+  ggplot()+
+  geom_line(aes(date,temp))
+
+ggplotly(p)
+
 dometa$month = factor(dometa$month, levels = c("Oct","Nov","Dec","Jan","Feb","Mar","Apr","May", "Jun","Jul", "Aug","Sep"))
   
 dometavg <- dometa %>% 
   select(wateryear, mn.temp) %>% 
   rename(temp = "mn.temp") %>% 
-  mutate(wateryear = "16 Year Mean")
+  mutate(wateryear = "14 Year Mean")
 
 dometdat <- dometa %>% 
   select(wateryear, mn.monthly.temp) %>% 
@@ -171,6 +186,7 @@ p2 <- dometemp %>%
   labs(x = "Month", y = "Air Temperature (°C)")+
   theme(legend.position = "none")
 
+ggplotly(p2)
 ###########################################################################
 # Precipitation Data Wrangle ----------------------------------------------
 
@@ -182,13 +198,19 @@ domepc <- read_csv("Climate-Comparisons/other climate data/DataSetExport-PC.Work
          yday = yday(date),
          month = month(date, label = T),
          year = year(date)) %>% 
+  filter(date <= ymd("2020-09-30")) %>% 
+  mutate(wateryear = case_when(
+    date >= ymd("2018-10-01") & date <= ymd("2019-09-30") ~ "2018/2019",
+    date >= ymd("2019-10-01")  ~ "2019/2020",
+    TRUE ~ "NA")) %>% 
   filter(year >= "2014" | year <= "2011") %>% 
   group_by(date) %>% 
   summarise(mn.daily.val = mean(rain,na.rm = T),
             date = date(datetime),
             yday = yday(date),
             month = month(date, label = T),
-            year = year(date)) %>% 
+            year = year(date),
+            wateryear = wateryear) %>% 
   ungroup() %>% 
   mutate(val = mn.daily.val - lag(mn.daily.val, 1),
          val = case_when(
@@ -201,29 +223,29 @@ domepc <- read_csv("Climate-Comparisons/other climate data/DataSetExport-PC.Work
   ungroup() %>% 
   group_by(month) %>% 
   mutate(mn.month = mean(sm.month, na.rm = T)) %>% 
-  select(date,month,sm.month,mn.month) %>% 
-  filter(date >= ymd("2018-10-01")) %>% 
-  mutate(wateryear = case_when(
-    date >= ymd("2018-10-01") & date <= ymd("2019-09-30") ~ "2018/2019",
-    date >= ymd("2019-10-01")  ~ "2019/2020",
-    TRUE ~ "NA"))
+  select(year,month,sm.month,mn.month,wateryear) %>% 
+  filter(wateryear != "NA") %>% 
+  distinct()
+
 
 domeavg <- domepc %>% 
   select(month, mn.month) %>% 
   rename(mm.precip = "mn.month") %>% 
-  mutate(wateryear = "16 Year Mean")
+  mutate(wateryear = "14 Year Mean")
 
 domeyrs <- domepc %>% 
-  select(-date,-mn.month) %>% 
-  rename(mm.precip = "sm.month")
+  select(-mn.month,-year) %>% 
+  rename(mm.precip = "sm.month") %>% 
+  distinct()
 
-domepc <- bind_rows(domeavg,domeyrs)
+domepc <- bind_rows(domeavg,domeyrs) %>% 
+  distinct()
 
 
   
 domepc$month = factor(domepc$month, levels = c("Oct","Nov","Dec","Jan","Feb","Mar","Apr","May", "Jun","Jul", "Aug","Sep"))
 
-domepc$wateryear = factor(domepc$wateryear, levels = c("2018/2019","2019/2020","16 Year Mean"))
+domepc$wateryear = factor(domepc$wateryear, levels = c("2018/2019","2019/2020","14 Year Mean"))
 
 
 
@@ -236,16 +258,66 @@ p3 <- domepc %>%
   geom_col(aes(month, mm.precip, fill = wateryear), position = "dodge")+
   scale_fill_manual(values=c("#F8766D", "#00BFC4", "#999999"), name = "Water Year")+
   labs(x = "Month", y = "Precipitation (mm)")+
-  theme(legend.position = c(.95,.8))
+  theme(legend.position = c(.92,.88),
+        legend.title = element_text(size = 10),
+        legend.text = element_text(size = 8))
 
 
+ggplotly(p3)
 
+
+# Precipitation Ratios
+
+precip.ratio <- domepc %>% 
+  mutate(wateryear = case_when(
+    wateryear == "14 Year Mean" ~ "mn",
+    wateryear == "2018/2019" ~ "wy1819",
+    wateryear == "2019/2020" ~ "wy1920"
+  ))
+
+precip.ratio <- precip.ratio%>% 
+  pivot_wider(names_from = wateryear, values_from = mm.precip)
+
+precip.ratio <- precip.ratio %>% 
+  mutate(rto1819 = 100*wy1819/mn,
+         rto1920 = 100*wy1920/mn) %>% 
+  ungroup()
+
+totals <- precip.ratio %>% 
+  summarise(month = as.character("Total"),
+            mn = sum(mn),
+            wy1819 = sum(wy1819),
+            wy1920 = sum(wy1920),
+            rto1819 = 100*wy1819/mn,
+            rto1920 = 100*wy1920/mn)
+
+
+totals$month <- as.character(totals$month)
+
+
+precip.summary <- bind_rows(precip.ratio,totals) %>% 
+  select(month,mn, wy1819,rto1819,wy1920,rto1920)
+
+precip.summary$month <- factor(precip.summary$month, levels = c("Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec","Total"))
+
+precip.summary <- precip.summary %>% 
+  arrange(month)
+
+# Precip ratio table
+table <- kableExtra::kbl(precip.summary,digits = 1, col.names = c("-","(mm)", "(mm)", "% Mean", "(mm)", "% Mean"),align = "c",)%>% 
+  kable_styling(bootstrap_options = c("striped", "hover"),font_size = 12) %>% 
+  add_header_above(c("Month","14 Year Mean", "2018/2019 " = 2, "2019/2020 " = 2), align = "center") %>% 
+  column_spec(column = c(1,2,4),border_right = T)
+
+
+kableExtra::as_image(table, width = 6.5,file = "DomePrecip.png")
 # PLOT THE GRID -----------------------------------------------------------
 
 
 
-grid.arrange(p1,p3,p2)
+DomeGrid <- grid.arrange(p1,p3,p2)
 
+ggsave(plot = DomeGrid, filename = "DomeGrid.png", device = "png", width = 6.5,height = 7.2, units = "in")
 
 # 
 # 
