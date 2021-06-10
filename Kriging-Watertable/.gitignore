@@ -8,3 +8,6 @@ AF_DEM-lowres.tif
 AF_DEM.tif
 Kriging-Watertable.html
 watertable.gif
+QGIS_ViridisColourRamp.txt
+QGIS_ViridisScale.clr
+AOI2019.gpkg

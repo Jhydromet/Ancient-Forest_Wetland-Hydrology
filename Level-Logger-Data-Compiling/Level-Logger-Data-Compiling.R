@@ -41,8 +41,8 @@ TidyDat <- function(files) {
            datetime = paste(date,time),
            datetime = dmy_hms(datetime),
            raw = as.numeric(raw)) %>% 
-    select(file,log.sn,site,datsite,datetime,date, raw) %>% 
-    filter(between(datetime,ymd_hms("2019-04-05 00:00:00"), ymd_hms("2020-12-31 00:00:00"))) %>% 
+    dplyr::select(file,log.sn,site,datsite,datetime,date, raw) %>% 
+    filter(between(datetime,ymd_hms("2019-03-25 00:00:00"), ymd_hms("2020-12-31 00:00:00"))) %>% 
     mutate(date = date(datetime))
 }
 
@@ -68,41 +68,43 @@ rawdat <- rawdat %>%
 
 ## KEEP CHECKING THAT LOGGER SERIAL, SITE NUMBER AND FILE NAME ARE CONSISTENT!!!!!!
 
-# rawdat %>% 
-#   filter(site != "AFGW-B2b") %>% 
-# ggplot()+
-#   geom_line(aes(datetime,site, colour = site), size = 2) + 
-#   labs(x = "Date", y = "Site", title = paste0(Sys.Date()," Tidied WL Logger Data"))+
-#   scale_colour_discrete(guide = FALSE)
+p <- rawdat %>%
+  filter(site != "AFGW-B2b") %>%
+ggplot()+
+  geom_line(aes(datetime,raw, colour = site), size = 2) +
+  labs(x = "Date", y = "Site", title = paste0(Sys.Date()," Tidied WL Logger Data"))+
+  scale_colour_discrete(guide = FALSE)
 
+
+ggplotly(p)
 
 # Add in Calibration Data & Geometry -------------------------------------------------
 
 cal <- read_csv("Level-Logger-Data-Compiling/Calibration Values.csv") %>% 
-  select(-type,-site) %>% 
+  dplyr::select(-type,-site) %>% 
   rename(site = "site1")
 
 
 geo <- read_sf("Level-Logger-Data-Compiling/piezos.gpkg") %>% 
-  select(site)
+  dplyr::select(site)
 
 cal.geo <- left_join(geo,cal, by = "site") %>% 
-  select(-site) %>% 
+  dplyr::select(-site) %>% 
   rename(site = "altsite") %>% 
   filter(site != "NA")
 
 
-rawdat %>% select(site) %>% distinct()
-cal.geo %>% select(site)
+rawdat %>% dplyr::select(site) %>% distinct()
+cal.geo %>% dplyr::select(site)
 
 wldat <- full_join(rawdat,cal.geo, by = c("site","log.sn")) %>% 
   mutate(site = sub(".*AFGW-","",site)) %>% 
-  select(-file, -toctg_cm_2021)
+  dplyr::select(-file, -toctg_cm_2021)
 
 manual <- read_csv("Level-Logger-Data-Compiling/Manual_Water_Measurements.csv") %>% 
   mutate(date = mdy(date)) %>% 
   rename(log.sn = "serial_gw", gtw_cm_man = "gtw_cm") %>% 
-  select(-toctg_cm)
+  dplyr::select(-toctg_cm)
 
 # p <- manual %>% 
 #   ggplot()+
@@ -111,7 +113,6 @@ manual <- read_csv("Level-Logger-Data-Compiling/Manual_Water_Measurements.csv") 
 # ggplotly(p)
 
 wldat <- left_join(wldat,manual, by = c("date", "site", "log.sn"))
-
 
 
 # Clean up the data -----------------------------------------------------
@@ -130,8 +131,8 @@ A1G <- wldat %>%
          head = (wl/10)+elevation_m) %>% 
   filter(datetime <= ymd_hms("2019-09-10 14:15:00") | datetime >= ymd_hms("2019-09-19 00:00:00")) %>% 
   filter(date <= "2021-02-03") %>% 
-  complete(datetime = seq(ymd_hms("2019-04-05 00:00:00"),ymd_hms("2020-12-31 00:00:00"), by = "15 min")) %>% 
-  complete(date = seq(ymd("2019-04-05"),ymd("2020-12-31"), by = "day"))
+  complete(datetime = seq(ymd_hms("2019-03-25 00:00:00"),ymd_hms("2020-12-31 00:00:00"), by = "15 min")) %>% 
+  complete(date = seq(ymd("2019-03-25"),ymd("2020-12-31"), by = "day"))
 
 
 # A2G ----------------------------
@@ -153,8 +154,8 @@ A2G <- bind_rows(preflip, A2G) %>%
   mutate(toc.tw = (raw*m+b)/10,
          wl = toctg_cm - toc.tw +30,
          head = (wl/10)+elevation_m) %>% 
-  complete(datetime = seq(ymd_hms("2019-04-05 00:00:00"),ymd_hms("2020-12-31 00:00:00"), by = "15 min")) %>% 
-  complete(date = seq(ymd("2019-04-05"),ymd("2020-12-31"), by = "day"))
+  complete(datetime = seq(ymd_hms("2019-03-25 00:00:00"),ymd_hms("2020-12-31 00:00:00"), by = "15 min")) %>% 
+  complete(date = seq(ymd("2019-03-25"),ymd("2020-12-31"), by = "day"))
 
 
 
@@ -172,8 +173,8 @@ A3G <- wldat %>%
   mutate(toc.tw = (raw*m+b)/10,
          wl = toctg_cm - toc.tw+21,
          head = (wl/10)+elevation_m) %>% 
-  complete(datetime = seq(ymd_hms("2019-04-05 00:00:00"),ymd_hms("2020-12-31 00:00:00"), by = "15 min")) %>% 
-  complete(date = seq(ymd("2019-04-05"),ymd("2020-12-31"), by = "day"))
+  complete(datetime = seq(ymd_hms("2019-03-25 00:00:00"),ymd_hms("2020-12-31 00:00:00"), by = "15 min")) %>% 
+  complete(date = seq(ymd("2019-03-25"),ymd("2020-12-31"), by = "day"))
 
 
 # A4G -----------------------------
@@ -195,8 +196,8 @@ A4G <- bind_rows(preflip,A4G) %>%
   mutate(toc.tw = (raw*m+b)/10,
          wl = toctg_cm - toc.tw+15,
          head = (wl/10)+elevation_m) %>% 
-  complete(datetime = seq(ymd_hms("2019-04-05 00:00:00"),ymd_hms("2020-12-31 00:00:00"), by = "15 min")) %>% 
-  complete(date = seq(ymd("2019-04-05"),ymd("2020-12-31"), by = "day"))
+  complete(datetime = seq(ymd_hms("2019-03-25 00:00:00"),ymd_hms("2020-12-31 00:00:00"), by = "15 min")) %>% 
+  complete(date = seq(ymd("2019-03-25"),ymd("2020-12-31"), by = "day"))
 
 
 # B1G -----------------------------
@@ -226,8 +227,8 @@ B1G <- bind_rows(prewinter,B1G) %>%
   mutate(toc.tw = (raw*m+b)/10,
          wl = toctg_cm - toc.tw+ 45,
          head = (wl/10)+elevation_m) %>% 
-  complete(datetime = seq(ymd_hms("2019-04-05 00:00:00"),ymd_hms("2020-12-31 00:00:00"), by = "15 min")) %>% 
-  complete(date = seq(ymd("2019-04-05"),ymd("2020-12-31"), by = "day"))
+  complete(datetime = seq(ymd_hms("2019-03-25 00:00:00"),ymd_hms("2020-12-31 00:00:00"), by = "15 min")) %>% 
+  complete(date = seq(ymd("2019-03-25"),ymd("2020-12-31"), by = "day"))
 
 
 
@@ -294,8 +295,8 @@ B2G <- bind_rows(prepump,B2G) %>%
          wl = toctg_cm - toc.tw+20,
          head = (wl/10)+elevation_m) %>% 
   filter(year(datetime) == "2019") %>% 
-  complete(datetime = seq(ymd_hms("2019-04-05 00:00:00"),ymd_hms("2020-12-31 00:00:00"), by = "15 min")) %>% 
-  complete(date = seq(ymd("2019-04-05"),ymd("2020-12-31"), by = "day"))
+  complete(datetime = seq(ymd_hms("2019-03-25 00:00:00"),ymd_hms("2020-12-31 00:00:00"), by = "15 min")) %>% 
+  complete(date = seq(ymd("2019-03-25"),ymd("2020-12-31"), by = "day"))
 
 
 # p <- B2G %>% ggplot()+
@@ -320,8 +321,8 @@ B3G <- wldat %>%
   mutate(toc.tw = (raw*m+b)/10,
          wl = toctg_cm - toc.tw+10,
          head = (wl/10)+elevation_m) %>% 
-  complete(datetime = seq(ymd_hms("2019-04-05 00:00:00"),ymd_hms("2020-12-31 00:00:00"), by = "15 min")) %>% 
-  complete(date = seq(ymd("2019-04-05"),ymd("2020-12-31"), by = "day"))
+  complete(datetime = seq(ymd_hms("2019-03-25 00:00:00"),ymd_hms("2020-12-31 00:00:00"), by = "15 min")) %>% 
+  complete(date = seq(ymd("2019-03-25"),ymd("2020-12-31"), by = "day"))
 
 
 # B4G -----------------------------
@@ -333,8 +334,8 @@ B4G <- wldat %>%
   mutate(toc.tw = (raw*m+b)/10,
          wl = toctg_cm - toc.tw+40,
          head = (wl/10)+elevation_m) %>% 
-  complete(datetime = seq(ymd_hms("2019-04-05 00:00:00"),ymd_hms("2020-12-31 00:00:00"), by = "15 min")) %>% 
-  complete(date = seq(ymd("2019-04-05"),ymd("2020-12-31"), by = "day"))
+  complete(datetime = seq(ymd_hms("2019-03-25 00:00:00"),ymd_hms("2020-12-31 00:00:00"), by = "15 min")) %>% 
+  complete(date = seq(ymd("2019-03-25"),ymd("2020-12-31"), by = "day"))
 
 
 
@@ -358,8 +359,8 @@ B5G <- bind_rows(prepump,B5G) %>%
   mutate(toc.tw = (raw*m*0.1+b)/10,
          wl = toctg_cm - toc.tw+30,
          head = (wl/10)+elevation_m) %>% 
-  complete(datetime = seq(ymd_hms("2019-04-05 00:00:00"),ymd_hms("2020-12-31 00:00:00"), by = "15 min")) %>% 
-  complete(date = seq(ymd("2019-04-05"),ymd("2020-12-31"), by = "day"))
+  complete(datetime = seq(ymd_hms("2019-03-25 00:00:00"),ymd_hms("2020-12-31 00:00:00"), by = "15 min")) %>% 
+  complete(date = seq(ymd("2019-03-25"),ymd("2020-12-31"), by = "day"))
 
 
 
@@ -373,8 +374,8 @@ C1G <- wldat %>%
   mutate(toc.tw = (raw*m+b)/10,
          wl = toctg_cm - toc.tw+55,
          head = (wl/10)+elevation_m) %>% 
-  complete(datetime = seq(ymd_hms("2019-04-05 00:00:00"),ymd_hms("2020-12-31 00:00:00"), by = "15 min")) %>% 
-  complete(date = seq(ymd("2019-04-05"),ymd("2020-12-31"), by = "day"))
+  complete(datetime = seq(ymd_hms("2019-03-25 00:00:00"),ymd_hms("2020-12-31 00:00:00"), by = "15 min")) %>% 
+  complete(date = seq(ymd("2019-03-25"),ymd("2020-12-31"), by = "day"))
 
 C1G %>% 
   ggplot()+
@@ -395,8 +396,8 @@ C2G <- wldat %>%
   mutate(toc.tw = (raw*m+b)/10,
          wl = toctg_cm - toc.tw,
          head = (wl/10)+elevation_m) %>% 
-  complete(datetime = seq(ymd_hms("2019-04-05 00:00:00"),ymd_hms("2020-12-31 00:00:00"), by = "15 min")) %>% 
-  complete(date = seq(ymd("2019-04-05"),ymd("2020-12-31"), by = "day"))
+  complete(datetime = seq(ymd_hms("2019-03-25 00:00:00"),ymd_hms("2020-12-31 00:00:00"), by = "15 min")) %>% 
+  complete(date = seq(ymd("2019-03-25"),ymd("2020-12-31"), by = "day"))
 
 
 # C3G -----------------------------
@@ -412,8 +413,8 @@ C3G <- wldat %>%
   mutate(toc.tw = (raw*m+b)/10,
          wl = toctg_cm - toc.tw+20,
          head = (wl/10)+elevation_m) %>% 
-  complete(datetime = seq(ymd_hms("2019-04-05 00:00:00"),ymd_hms("2020-12-31 00:00:00"), by = "15 min")) %>% 
-  complete(date = seq(ymd("2019-04-05"),ymd("2020-12-31"), by = "day"))
+  complete(datetime = seq(ymd_hms("2019-03-25 00:00:00"),ymd_hms("2020-12-31 00:00:00"), by = "15 min")) %>% 
+  complete(date = seq(ymd("2019-03-25"),ymd("2020-12-31"), by = "day"))
 
 
 # C4G -----------------------------
@@ -429,8 +430,8 @@ C4G <- wldat %>%
   mutate(toc.tw = (raw*m+b)/10,
          wl = toctg_cm - toc.tw+5,
          head = (wl/10)+elevation_m) %>% 
-  complete(datetime = seq(ymd_hms("2019-04-05 00:00:00"),ymd_hms("2020-12-31 00:00:00"), by = "15 min")) %>% 
-  complete(date = seq(ymd("2019-04-05"),ymd("2020-12-31"), by = "day"))
+  complete(datetime = seq(ymd_hms("2019-03-25 00:00:00"),ymd_hms("2020-12-31 00:00:00"), by = "15 min")) %>% 
+  complete(date = seq(ymd("2019-03-25"),ymd("2020-12-31"), by = "day"))
 
 
 
@@ -450,8 +451,8 @@ ECRKG <- wldat %>%
   mutate(toc.tw = (raw*m+b)/10,
          wl = toctg_cm - toc.tw,
          head = (wl/10)+elevation_m) %>% 
-  complete(datetime = seq(ymd_hms("2019-04-05 00:00:00"),ymd_hms("2020-12-31 00:00:00"), by = "15 min")) %>% 
-  complete(date = seq(ymd("2019-04-05"),ymd("2020-12-31"), by = "day"))
+  complete(datetime = seq(ymd_hms("2019-03-25 00:00:00"),ymd_hms("2020-12-31 00:00:00"), by = "15 min")) %>% 
+  complete(date = seq(ymd("2019-03-25"),ymd("2020-12-31"), by = "day"))
 
 
 
@@ -466,8 +467,8 @@ WCRKG <- wldat %>%
   mutate(toc.tw = (raw*m+b)/10,
          wl = toctg_cm - toc.tw+100,
          head = (wl/10)+elevation_m) %>% 
-  complete(datetime = seq(ymd_hms("2019-04-05 00:00:00"),ymd_hms("2020-12-31 00:00:00"), by = "15 min")) %>% 
-  complete(date = seq(ymd("2019-04-05"),ymd("2020-12-31"), by = "day"))
+  complete(datetime = seq(ymd_hms("2019-03-25 00:00:00"),ymd_hms("2020-12-31 00:00:00"), by = "15 min")) %>% 
+  complete(date = seq(ymd("2019-03-25"),ymd("2020-12-31"), by = "day"))
 
 # I never verified this data with a manual measurement.. FUCK.
 
@@ -480,8 +481,8 @@ WCRKS <- wldat %>%
   mutate(toc.tw = raw*m+b,
          wl = toctg_cm - toc.tw,
          head = (wl/10)+elevation_m) %>% 
-  complete(datetime = seq(ymd_hms("2019-04-05 00:00:00"),ymd_hms("2020-12-31 00:00:00"), by = "15 min")) %>% 
-  complete(date = seq(ymd("2019-04-05"),ymd("2020-12-31"), by = "day"))
+  complete(datetime = seq(ymd_hms("2019-03-25 00:00:00"),ymd_hms("2020-12-31 00:00:00"), by = "15 min")) %>% 
+  complete(date = seq(ymd("2019-03-25"),ymd("2020-12-31"), by = "day"))
 
 # ECRKS -----------------------------
 
@@ -492,8 +493,8 @@ ECRKS <- wldat %>%
   mutate(toc.tw = raw*m+b,
          wl = toctg_cm - toc.tw,
          head = (wl/10)+elevation_m) %>% 
-  complete(datetime = seq(ymd_hms("2019-04-05 00:00:00"),ymd_hms("2020-12-31 00:00:00"), by = "15 min")) %>% 
-  complete(date = seq(ymd("2019-04-05"),ymd("2020-12-31"), by = "day"))
+  complete(datetime = seq(ymd_hms("2019-03-25 00:00:00"),ymd_hms("2020-12-31 00:00:00"), by = "15 min")) %>% 
+  complete(date = seq(ymd("2019-03-25"),ymd("2020-12-31"), by = "day"))
 
 # p <- ECRKS %>%
 #   ggplot()+
@@ -518,7 +519,7 @@ dat.cor <- bind_rows(A1G, A2G, A4G, B1G, B2G, B4G, B5G, C1G, C2G, C3G, C4G, ECRK
 
 
 daily.data <- dat.cor %>% 
-  select(date,head,geom,wl,gtw_cm_man,elevation_m) %>% 
+  dplyr::select(date,head,geom,wl,gtw_cm_man,elevation_m) %>% 
   group_by(date,site) %>% 
   mutate(head = mean(head, na.rm = T),
          wl = mean (wl, na.rm = T),
@@ -526,9 +527,14 @@ daily.data <- dat.cor %>%
          man.wl = mean(gtw_cm_man)) %>% 
   distinct()
 
-# write_csv(daily.data, "gw-waterlevel-dat.csv")
+dat <- dat.cor %>% 
+  dplyr::select(site,datetime,wl)
 
-p <- daily.data %>%
+#write_csv(dat, "gw-waterlevel-dat.csv")
+
+
+daily.data %>%
+  filter(date >= ymd("2019-03-28")) %>% 
   filter(site!="ECRK" & site != "WCRK" & site !="B3" & site != "A3") %>%
   ggplot()+
   geom_line(aes(x = date, y = wl, colour = site))+
@@ -537,20 +543,20 @@ p <- daily.data %>%
   facet_grid(rows = "trans", scales = "free")+
   labs(x = "Date", y = "Water Level (cm)")+
   scale_colour_discrete(name = "Site")
-ggplotly(p)
 
 
-# Filter down to first of month dates
 
-daterange <- seq(ymd("2019-05-01"), ymd("2020-11-01"), by = "month")
+# Filter down to week
+
+daterange <- seq(ymd("2019-03-25"), ymd("2020-11-01"), by = "week")
 
 
-monthly.data <- daily.data%>% 
+weekly.data <- daily.data%>% 
   filter(date %in% daterange) %>% 
   ungroup() %>% 
-  select(date,head,geom,elevation_m)
+  dplyr::select(date,head,geom,elevation_m)
 
-# p <- monthly.data %>% 
+# p <- weekly.data %>% 
 #   ggplot()+
 #   geom_line(aes(x = date, y = head, colour = site))
 # ggplotly(p)
@@ -572,15 +578,15 @@ SLIMS <-  wldat %>%
   mutate(toc.tw = (raw*m+b)/10,
          wl = toctg_cm - toc.tw+40,
          head = (wl/10)+elevation_m) %>% 
-  complete(datetime = seq(ymd_hms("2019-04-05 00:00:00"),ymd_hms("2020-12-31 00:00:00"), by = "15 min")) %>% 
-  complete(date = seq(ymd("2019-04-05"),ymd("2020-12-31"), by = "day"))
+  complete(datetime = seq(ymd_hms("2019-03-25 00:00:00"),ymd_hms("2020-12-31 00:00:00"), by = "15 min")) %>% 
+  complete(date = seq(ymd("2019-03-25"),ymd("2020-12-31"), by = "day"))
 
 # write_csv(SLIMS, "Level-Logger-Data-Compiling/SLIM.csv")
 
 
 slim_monthly <- SLIMS %>% 
   ungroup() %>% 
-  select(date,wl) %>% 
+  dplyr::select(date,wl) %>% 
   group_by(date) %>% 
   summarise(wl = mean(wl, na.rm = T)) %>% 
   filter(date %in% daterange)
@@ -595,7 +601,7 @@ slim <- bind_cols(slim,slim_geo) %>%
 slim <- slim %>% 
   mutate(head = elevations + (wl/10),
          elevation_m = elevations) %>% 
-  select(date,head,geom, elevation_m)
+  dplyr::select(date,head,geom, elevation_m)
 
 
 
@@ -615,7 +621,7 @@ fraser_geo <- st_read("Level-Logger-Data-Compiling/river_data/Fraser_Points.gpkg
 
 
 fraser_monthly <- read_csv("Level-Logger-Data-Compiling/river_data/FRASER.csv") %>% 
-  select(date,wl) %>%
+  dplyr::select(date,wl) %>%
   mutate(date = mdy(date)) %>% 
   group_by(date) %>% 
   summarise(wl = mean(wl, na.rm = T)) %>% 
@@ -629,12 +635,15 @@ fraser <- bind_cols(fraser,fraser_geo) %>%
 fraser <- fraser %>% 
   mutate(head = elevation + (wl/10),
          elevation_m = elevation) %>% 
-  select(date,head,geom, elevation_m)
+  dplyr::select(date,head,geom, elevation_m)
 
 # Bind river data to rest of data. ----------------------------------------
 
-final_monthly <- full_join(monthly.data, fraser)
-final_monthly <- full_join(final_monthly,slim)
+final_weekly <- full_join(weekly.data, fraser)
+final_weekly <- full_join(final_monthly,slim) 
+
+final_weekly <- final_weekly%>% 
+  drop_na(head)
 
 # daterange = "2020-08-01"
 
@@ -643,7 +652,7 @@ final_monthly <- full_join(final_monthly,slim)
 B <-  st_read("Kriging-Watertable/AOI.gpkg")
 
 monthly_gpkg_writer <- function(daterange){
-  monthly_geo <- st_as_sf(final_monthly) %>% 
+  monthly_geo <- st_as_sf(final_weekly) %>% 
     filter(date == daterange)
   filtered <- sf::st_filter(x = monthly_geo, y = B, .pred = st_intersects)
   st_write(filtered, paste0("Level-Logger-Data-Compiling/daily_wl_gpkgs/", daterange, ".gpkg"))
@@ -654,8 +663,8 @@ monthly_gpkg_writer <- function(daterange){
 #   geom_sf(data =filtered)+
 #   geom_sf(data =B)
 
-# Applying the geopackage outputter here:
-# 
+# # Applying the geopackage outputter here:
+# # 
 # daterange %>%
 #   map(monthly_gpkg_writer)
 

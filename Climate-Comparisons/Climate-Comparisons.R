@@ -284,21 +284,42 @@ precip.ratio <- precip.ratio %>%
   ungroup()
 
 totals <- precip.ratio %>% 
-  summarise(month = as.character("Total"),
+  summarise(month = as.character("Precipitation"),
             mn = sum(mn),
             wy1819 = sum(wy1819),
             wy1920 = sum(wy1920),
             rto1819 = 100*wy1819/mn,
             rto1920 = 100*wy1920/mn)
 
+total.rn <- precip.ratio %>% 
+  filter(month %in% c("May","Jun","Jul","Aug","Sep")) %>% 
+  summarise(month = as.character("Rain"),
+            mn = 1422.4-864.4,
+            wy1819 = 1463.0-762.8,
+            wy1920 = 1759.2-1082.8,
+            rto1819 = 100*wy1819/mn,
+            rto1920 = 100*wy1920/mn)
+
+total.sn <- precip.ratio %>% 
+  summarise(month = as.character("Snow"),
+            mn = 864.4,
+            wy1819 = 762.8,
+            wy1920 = 1082.8,
+            rto1819 = 100*wy1819/mn,
+            rto1920 = 100*wy1920/mn)
+
+
+
 
 totals$month <- as.character(totals$month)
 
 
-precip.summary <- bind_rows(precip.ratio,totals) %>% 
+precip.summary <- bind_rows(totals, total.rn,total.sn) %>% 
   select(month,mn, wy1819,rto1819,wy1920,rto1920)
 
-precip.summary$month <- factor(precip.summary$month, levels = c("Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec","Total"))
+# precip.summary$month <- factor(precip.summary$month, levels = c("Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec","Total", "Total Rain","Total Snow"))
+
+precip.summary$month <- factor(precip.summary$month, levels = c("Rain","Snow","Precipitation"))
 
 precip.summary <- precip.summary %>% 
   arrange(month)
@@ -306,11 +327,27 @@ precip.summary <- precip.summary %>%
 # Precip ratio table
 table <- kableExtra::kbl(precip.summary,digits = 1, col.names = c("-","(mm)", "(mm)", "% Mean", "(mm)", "% Mean"),align = "c",)%>% 
   kable_styling(bootstrap_options = c("striped", "hover"),font_size = 12) %>% 
-  add_header_above(c("Month","14 Year Mean", "2018/2019 " = 2, "2019/2020 " = 2), align = "center") %>% 
+  add_header_above(c("Totals","14 Year Mean", "2018/2019 " = 2, "2019/2020 " = 2), align = "center") %>% 
   column_spec(column = c(1,2,4),border_right = T)
 
 
 kableExtra::as_image(table, width = 6.5,file = "DomePrecip.png")
+
+
+
+snow2rain <- bind_rows(total.rn,total.sn)
+
+snow2raintot <- snow2rain %>% 
+  summarise(month = "Rain:Snow",
+            mn = 558/864,
+            wy1819 = 700/763,
+            wy1920 = 676/1083)
+
+
+
+
+
+
 # PLOT THE GRID -----------------------------------------------------------
 
 

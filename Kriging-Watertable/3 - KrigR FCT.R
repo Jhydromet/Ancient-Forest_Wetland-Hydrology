@@ -10,8 +10,8 @@ library(sp)    # Used for the spsample function
 
 
 
-dataday = seq(ymd("2019-05-01"), ymd("2020-11-01"), by = "week")
-# Test day dataday = as.Date("2019-05-01")
+dataday = seq(ymd("2019-03-25"), ymd("2020-11-01"), by = "week")
+# Test day dataday = as.Date("2020-05-01")
 
 crs_utm10 <- CRS(SRS_string = "EPSG:32610")
 
@@ -19,10 +19,17 @@ KrigR <- function(dataday) {
   
   WL <- as_Spatial(st_read(paste0("Level-Logger-Data-Compiling/daily_wl_gpkgs/", dataday, ".gpkg")))
   proj4string(WL) <- crs_utm10
-  B <-  as_Spatial(st_read("Kriging-Watertable/AOI.gpkg"))
+  B2019 <-  
+  B2020 <-  st_read("Kriging-Watertable/AOI.gpkg")
+  
+  if (year(ymd(dataday)) == 2019){
+    B <- as_Spatial(st_read("Kriging-Watertable/AOI2019.gpkg"))
+  }  else {
+      B <- as_Spatial(st_read("Kriging-Watertable/AOI.gpkg"))
+  }
+    
   proj4string(B) <- crs_utm10
   WL@bbox <- B@bbox
-  
   
   f.1 <- as.formula(head ~ elevation_m)
   

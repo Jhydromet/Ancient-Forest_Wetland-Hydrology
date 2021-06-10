@@ -154,9 +154,173 @@ rain.stat <- roll_rain %>%
             kpss = tidy(kpss.test(mn.rain))$p.value,
             kpss.diff = tidy(kpss.test(diff(mn.rain,1)))$p.value)
 ```
-
-
 ### Non-detrended data Cross Correlation
+
+```{r 6 hr rolling mean, 01 June to 01 Nov,echo=FALSE, message=FALSE, warning=FALSE}
+
+
+dat <- read_csv("Level-Logger-Data-Compiling/gw-waterlevel-dat.csv") %>% 
+  rename(timestamp = "datetime")
+
+sites <- dat %>% 
+  select(site) %>% 
+  filter(!(site %in% c("ECRK","WCRK","B5"))) %>% 
+  distinct()
+
+sites <- sites$site
+
+sites <- "B5"
+
+correlator <- function(sites) {
+  wldat <- dat %>% 
+    filter(site == sites) %>% 
+    mutate(wl = roll_mean(wl, width = 24)) %>% 
+    drop_na(wl)
+  
+  cordat <- full_join(roll_rain, wldat) %>% 
+      drop_na() %>%
+      distinct() %>%
+      filter(date(timestamp) >= "2019-06-01" & date(timestamp) <= "2019-11-01")
+  
+    bccf <-  ccf(cordat$mn.rain, cordat$wl,plot = TRUE, lag = 250, ylab = paste0("ccf ", sites))
+  
+    bacfdf <- with(bccf, data.frame(lag, acf))%>%
+      rename(crcor = "acf", lagg = "lag") %>%
+      mutate(site = sites)
+}
+
+
+data <- sites %>%
+  map(correlator) %>%
+  reduce(rbind)
+
+data <- data  %>% 
+  mutate(valid = case_when(
+    site %in% c("A1","A4","B4")~"poor",
+    TRUE ~ "good"
+  ))
+
+conf.level <- 0.95
+ciline <- qnorm((1 + conf.level)/2)/sqrt(14781) # 14781 is the number of data pts in each timeseries
+
+p <- data %>%
+  ggplot()+
+  geom_line(data = filter(data, valid == "poor"),aes(lagg,crcor, group = site), colour = "grey", size = .9)+
+  geom_line(data = filter(data, valid == "good"),aes(lagg,crcor,colour = site), size = .9)+
+  # geom_line(aes(lagg,crcor,colour=site))+
+  geom_hline(aes(yintercept = 0)) +
+  geom_hline(aes(yintercept = ciline), linetype = 2, color = 'darkblue') +
+  geom_hline(aes(yintercept = -ciline), linetype = 2, color = 'darkblue')+
+  # geom_segment(mapping = aes(xend = lagg, yend = 0))+
+  labs(x = "Lag (15 Min)", y = "Correlation Coefficient")+
+  scale_colour_discrete(name = "Site")+
+  theme(legend.position = c(.925,.73))
+
+
+# , title = paste(" 6 hr rollmean Rain to Water Level Correlation 01 Jun - 01 Nov 2019")
+
+p
+# 
+
+# Correlate and Plot Function ---------------------------------------------
+
+
+CrossCorrelateR <- function(files) {
+
+  sites = substr(files, start = 0, stop = 4)
+
+  # Load in and tidy data ---------------------------------------------------
+
+  raw <- read_csv(paste0("Cross-Correlation-Precip-Watertable/GW-Data/", files)) %>%
+    dplyr::mutate(time = replace_na(time, 00:00:00),
+      timestamp = dmy_hms(paste(date,time))) %>%
+    dplyr::select(timestamp, raw_val,site.no) %>%
+    dplyr::mutate(mn.val = roll_mean(raw_val, width = 24))
+
+  wl <- drop_na(wl)
+
+
+  # Join the data together and drop all timestamps with NA -----------------
+
+  dat <- full_join(roll_rain,wl) %>%
+    drop_na() %>%
+    distinct() %>%
+    filter(date(timestamp) >= "2019-06-01" & date(timestamp) <= "2019-11-01")
+
+  bccf <-  ccf(dat$mn.rain, dat$mn.val,plot = TRUE, lag = 250, ylab = paste0("ccf ", sites))
+
+  bacfdf <- with(bccf, data.frame(lag, acf))%>%
+    rename(crcor = "acf", lagg = "lag") %>%
+    mutate(site = sites)
+
+}
+
+data <- files %>%
+  map(CrossCorrelateR) %>%
+  reduce(rbind) %>% 
+  mutate(valid = case_when(
+    site %in% c("A1-G","B3-G","B4-G")~"poor",
+    TRUE ~ "good"
+  ))
+
+
+
+
+conf.level <- 0.95
+ciline <- qnorm((1 + conf.level)/2)/sqrt(14781) # 14781 is the number of data pts in each timeseries
+
+p <- data %>%
+  ggplot()+
+  geom_line(data = filter(data, valid == "poor"),aes(lagg,crcor, group = site), colour = "grey", size = .9)+
+  geom_line(data = filter(data, valid == "good"),aes(lagg,crcor,colour = site), size = .9)+
+  # geom_line(aes(lagg,crcor,colour=site))+
+  geom_hline(aes(yintercept = 0)) +
+  geom_hline(aes(yintercept = ciline), linetype = 2, color = 'darkblue') +
+  geom_hline(aes(yintercept = -ciline), linetype = 2, color = 'darkblue')+
+  # geom_segment(mapping = aes(xend = lagg, yend = 0))+
+  labs(x = "Lag (15 Min)", y = "Correlation Coefficient")+
+  scale_colour_discrete(name = "Site")+
+  theme(legend.position = c(.925,.73))
+
+ggplotly(p)
+# , title = paste(" 6 hr rollmean Rain to Water Level Correlation 01 Jun - 01 Nov 2019")
+
+p
+# 
+ggsave(p, filename = "RawCrossCorr.png",device = "png", width = 6.5,height = 4, units = "in")
+```
+
+```{r,echo=FALSE, message=FALSE, warning=FALSE}
+lag.dat <- data %>%
+  dplyr::group_by(site) %>% 
+  dplyr::filter(lagg <= 0) %>% 
+  dplyr::filter(crcor >= ciline & crcor == max(crcor)) %>%
+  dplyr::filter(!(site %in% c("A1-G","B3-G","B4-G"))) %>% 
+  dplyr::mutate(lag.hrs = lagg/4) %>% 
+  dplyr::select(site,lagg,lag.hrs,crcor)
+
+kable(lag.dat) %>% 
+  kable_material()
+
+table <-  kbl(lag.dat, digits = 2,col.names = c("Site","Lag (15 min","Lag (hours)","Correlation Coeff."))%>% kable_styling(bootstrap_options = c("striped", "hover"),font_size = 14)
+
+table
+
+
+kableExtra::as_image(table, width = 4,file = "CrossCorrTable.png")
+```
+
+```{r,echo=FALSE, message=FALSE, warning=FALSE}
+lag.summary <- lag.dat %>%
+  dplyr::ungroup() %>% 
+  dplyr::summarise(mn.lag.hrs = mean(lag.hrs),
+                   sd.lag.hrs = sd(lag.hrs))
+
+kable(lag.summary) %>% 
+  kable_material()
+```
+
+### Non-detrended data with log transform of 6 hr rolling mean rainfall data
 
 ```{r 6 hr rolling mean, 01 June to 01 Nov,echo=FALSE, message=FALSE, warning=FALSE}
 
@@ -164,6 +328,12 @@ rain.stat <- roll_rain %>%
 
 
 # Correlate and Plot Function ---------------------------------------------
+
+log_rain <- roll_rain %>% 
+  mutate(lograin= case_when(
+    mn.rain == 0 ~ 0.000000001,
+    TRUE ~ mn.rain^2
+  ))
 
 
 CrossCorrelateR <- function(files) {
@@ -184,12 +354,12 @@ CrossCorrelateR <- function(files) {
   kpss.test(wl$mn.val)
   # Join the data together and drop all timestamps with NA -----------------
 
-  dat <- full_join(roll_rain,wl) %>%
+  dat <- full_join(log_rain,wl) %>%
     drop_na() %>%
     distinct() %>%
     filter(date(timestamp) >= "2019-06-01" & date(timestamp) <= "2019-11-01")
 
-  bccf <-  ccf(dat$mn.rain, dat$mn.val,plot = TRUE, lag = 250, ylab = paste0("ccf ", sites))
+  bccf <-  ccf(dat$lograin, dat$mn.val,plot = TRUE, lag = 250, ylab = paste0("ccf ", sites))
 
   bacfdf <- with(bccf, data.frame(lag, acf))%>%
     rename(crcor = "acf", lagg = "lag") %>%
